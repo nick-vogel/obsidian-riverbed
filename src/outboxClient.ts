@@ -1,4 +1,5 @@
 import { requestUrl } from 'obsidian';
+import { OutboxGateway, OutboxItem } from './sync/types';
 
 // Client for Riverbed's outbox API. Contract (ground truth): the riverbed repo's
 // docs/outbox-api.md. Auth is `Authorization: Token <token>` -- NOT Bearer, NOT JWT;
@@ -54,4 +55,50 @@ export async function testConnection(baseUrl: string, token: string): Promise<Te
 	}
 	if (res.status === 401) return { kind: 'auth-failed' };
 	return { kind: 'unexpected-status', status: res.status };
+}
+
+/**
+ * The live outbox gateway: the sync pass's OutboxGateway backed by real HTTP.
+ *
+ * Unlike `testConnection`, which classifies outcomes for a Notice and never throws, every
+ * method here THROWS on a non-2xx or an unreachable host. A sync pass wraps the whole run,
+ * so a failure has to propagate to be turned into a visible status.
+ */
+export class HttpOutboxGateway implements OutboxGateway {
+	constructor(
+		private readonly getBaseUrl: () => string,
+		private readonly getToken: () => string,
+	) {}
+
+	private headers(): Record<string, string> {
+		return { Authorization: `Token ${this.getToken().trim()}` };
+	}
+
+	private url(path: string): string {
+		return `${normalizeBaseUrl(this.getBaseUrl())}${path}`;
+	}
+
+	async getPending(): Promise<OutboxItem[]> {
+		const res = await requestUrl({ url: this.url('/app-outbox'), method: 'GET', headers: this.headers() });
+		const items = res.json?.items;
+		return Array.isArray(items) ? (items as OutboxItem[]) : [];
+	}
+
+	async ack(id: string): Promise<void> {
+		// Idempotent per the contract: re-acking a delivered entry is a 200, never an error.
+		await requestUrl({
+			url: this.url(`/app-outbox/${encodeURIComponent(id)}/ack`),
+			method: 'POST',
+			headers: this.headers(),
+		});
+	}
+
+	async reportError(id: string, reason: string): Promise<void> {
+		await requestUrl({
+			url: this.url(`/app-outbox/${encodeURIComponent(id)}/error`),
+			method: 'POST',
+			headers: { ...this.headers(), 'Content-Type': 'application/json' },
+			body: JSON.stringify({ reason }),
+		});
+	}
 }

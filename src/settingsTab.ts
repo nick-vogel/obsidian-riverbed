@@ -81,6 +81,8 @@ export class RiverbedSettingTab extends PluginSettingTab {
 						}
 						this.plugin.settings.intervalMinutes = parsed;
 						await this.plugin.saveSettings();
+						// Rearm the timer, or the change only takes effect on the next restart.
+						this.plugin.rescheduleSync();
 					});
 			});
 
