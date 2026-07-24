@@ -90,14 +90,36 @@ tick a GUI/server gate off from a headless process.
 
 ## Continuous-mode authorization
 
-TO BE SET BY NICK before any unattended run (permission mode + how far the loop may
-push). Until set, treat as: attended only — run one pipeline step, report, stop.
+**AUTHORIZED (Nick, 2026-07-24).** Permission mode: `--dangerously-skip-permissions`,
+running directly in this repo on `project/obsidian-riverbed-v1` (fresh personal repo, no
+secrets, all in git — writes to the branch are fine and reversible).
 
-Given the manual-gate reality above, the realistic autonomous envelope is: review-plan
-phase 1 → write all Phase 1 code → close ONLY the headless gates (P1 S1, S5) → write Phase
-2 code + vitest unit tests for the pure logic → then STOP with a `blocked` handoff listing
-the batched manual verification for Nick to run in one sitting with Obsidian + the dev
-stack open. A loop should NOT attempt to close GUI/server gates.
+**Scope of the authorized autonomous run:**
+1. `/eng:review-plan` phase 1. If it returns blocking findings that are pure spec/plan
+   ambiguities you can resolve without a human judgment call, fix and re-review; if a
+   finding genuinely needs Nick, write a `blocked` handoff and stop.
+2. `/eng:implement-plan` phase 1: write ALL the code (scaffold, settings, outbox client,
+   Test-connection button, README). Close ONLY the headless gates: Step 1 (`pnpm
+   install`/`build`/manifest check) and Step 5 (README section). For the GUI/server gates
+   (Steps 2, 3, 4) WRITE the code but DO NOT attempt to verify them — record in the
+   Execution log that they are deferred to manual verification. Do not block at the first
+   one; keep going.
+3. `/eng:commit` the phase-1 code.
+4. Continue into phase 2: run `/eng:review-plan` phase 2, then write the `runSync()` code
+   AND **vitest unit tests** for the pure logic — `sanitizeFilename` (forbidden chars +
+   path-separator/`..` stripping), the dedupe/suffix-iteration algorithm, the
+   single-flight guard, and the ack-after-write ordering (with fake Vault + outbox
+   doubles). Close the pure-logic gates via those passing tests. Commit.
+5. **Then STOP with a `blocked` handoff** whose Open items enumerate the batched MANUAL
+   verification Nick must do in one sitting with Obsidian + the reader dev stack open:
+   every P1/P2 GUI/server gate (enable-in-Obsidian console check, settings-persist,
+   Test-connection vs `:3000`, sync round-trip, reader Outbox view, auto-sync timing,
+   notifications toggle). Set `status: blocked`.
+
+**Hard limits:** do NOT run `/eng:review-code` to CLOSE an Asana subtask on the strength
+of headless gates alone (a phase with unverified GUI gates is not review-clean — leave the
+subtask open and say so). Do NOT touch Phase 3. Do NOT fake any GUI/server gate. Do NOT
+create a Riverbed token or assume the dev stack is running.
 
 ## Dev stack
 
