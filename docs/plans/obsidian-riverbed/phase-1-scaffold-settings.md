@@ -407,3 +407,21 @@ autonomous run.
 
 Note: the plan's devtools shortcut was wrong for macOS (`Ctrl/Cmd-Shift-I`); corrected to
 `Cmd-Option-I on macOS, Ctrl-Shift-I elsewhere`.
+
+## Review log
+
+- 2026-07-24 — **3 blocking / 10 advisory** (independent Opus review-code, phases 1+2
+  together). Phase-1 blocking items: the sync-interval control validated on every
+  keystroke (`onChange` fires per input event, so clearing the field to retype read as
+  empty, tripped the floor, and rewrote the field under the caret — "select all, type 30"
+  produced `1530`; in a production build, floor 5, every value from 10 to 49 was
+  unreachable by ordinary typing), and `clampInterval`'s non-finite guard plus
+  `normalizeBaseUrl` had zero test coverage. Also noted: the manual gate session ran on a
+  DEV build (floor 1) and probed only `0`, so the recorded evidence could not support AC 3
+  for a production build.
+- 2026-07-24 — **CLEAN, 0 blocking** (re-review of commit `978757b`). Interval validation
+  moved to commit time (blur); `onChange` now persists only legal values and never rewrites
+  the field mid-edit. `clampInterval` and `normalizeBaseUrl` covered (the latter moved to
+  the obsidian-free `src/url.ts`, since the `obsidian` package ships types only and cannot
+  be loaded by the test runner). 41 tests green, typecheck and production build clean.
+  Status → approved. Surviving advisories carried to Asana `1216860990863548`.

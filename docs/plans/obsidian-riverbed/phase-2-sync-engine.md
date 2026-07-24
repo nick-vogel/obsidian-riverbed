@@ -58,8 +58,16 @@ this same narrow interface** (`vault.exists(path)`, `vault.read(path)`,
 `vault.createFolder(path)`) — never the raw Obsidian `Vault` methods — so the code under
 test in Step 0's unit gates is the same code the live plugin runs. The production adapter
 (wired in `main.ts`, not part of the injected interface) implements `exists(path)` as
-`this.app.vault.getAbstractFileByPath(path) !== null` and `read(path)` as
-`this.app.vault.read(this.app.vault.getAbstractFileByPath(path) as TFile)`.
+`this.app.vault.adapter.exists(normalizePath(path))` and `read(path)` as
+`this.app.vault.adapter.read(normalizePath(path))`.
+
+**Superseded 2026-07-24 by review-code.** This step originally prescribed
+`getAbstractFileByPath` for both. That is Obsidian's in-memory index, which is
+CASE-SENSITIVE while APFS and NTFS are not, so it answers "absent" for `Note.md` when
+`note.md` is on disk and `Vault.create` then truncates the user's existing note without
+the collision resolver ever running. The index is also stale for anything written out of
+band (iCloud, git, another tool). The adapter matches the semantics of the filesystem the
+write actually lands on, which is the only comparison that makes the guard sound.
 
 Verify: `pnpm test` exits 0 with at least one passing placeholder spec, and `pnpm exec tsc
 --noEmit` still exits 0 (the harness must not break Phase 1's typecheck gate).
@@ -299,8 +307,8 @@ outbox as injected dependencies, so the live plugin and the tests drive identica
   write → ack. `try/catch` wraps ONLY the write; the ack sits outside it.
 - `src/sync/sanitize.ts`, `src/sync/resolve.ts`: the pure sanitizer and the bounded
   collision resolver.
-- `src/main.ts`: production `SyncVault` adapter (`getAbstractFileByPath` for `exists`,
-  `vault.read` — not `cachedRead` — for the byte comparison), `Riverbed: Sync now` command,
+- `src/main.ts`: production `SyncVault` adapter (`vault.adapter.exists`/`read` — the
+  filesystem, not the case-sensitive index; see the superseding note above), `Riverbed: Sync now` command,
   startup pass, `rescheduleSync()` (clears the stored interval id BEFORE re-registering),
   status-bar item, notifications-gated Notice, and the `IS_DEV`-guarded fault injection for
   the AC 8 integration gate (filename sentinel `riverbed-fail-write`).
@@ -447,8 +455,8 @@ the volume gates and deleted afterward (`_gateClone` marker); no real save was d
 - **AC 9 — PASS, all three cases, no overwrites.** (a) identical bytes at target → no new
   file, entry acked; (b) different bytes → `dup-b-2.md`, original untouched; (c) target and
   `-2` both different → `dup-c-3.md`, both originals untouched. 3/3 acked.
-- **AC 10 — PASS.** Destination folder deleted; sync recreated it and delivered into it.
-- **AC 12 — PASS.** `../../ev:il?.md` sanitized to `ev-il-.md` INSIDE the folder.
+- **AC 12 — PASS.** Destination folder deleted; sync recreated it and delivered into it.
+- **AC 10 — PASS.** `../../ev:il?.md` sanitized to `ev-il-.md` INSIDE the folder.
   Containment proven against pre-sync snapshots of the vault root and `~/Desktop` (an
   escape of two levels would have landed on the Desktop): `~/Desktop` byte-for-byte
   unchanged, vault root gained only the destination folder.
@@ -485,3 +493,27 @@ and no-op feedback, `1216876861195652` reader template emits no frontmatter/arti
 because a file was removed outside Obsidian (iCloud, git, another tool — all normal for a
 vault), `read()` throws ENOENT. Behavior degrades correctly (entry fails, is reported, and
 retries), but treating ENOENT-on-read as "not there, write it" would be strictly better.
+
+## Review log
+
+- 2026-07-24 — **3 blocking / 10 advisory** (independent Opus review-code, phases 1+2
+  together). The phase-2 blocking item was a **data-destruction path**: the production
+  `SyncVault.exists` used `getAbstractFileByPath`, Obsidian's CASE-SENSITIVE in-memory
+  index, while APFS and NTFS are case-INSENSITIVE. With `inbox/why-ai-slop.md` in the vault
+  and a capture named `Why-AI-Slop.md`, the index answered "absent", `vault.create`
+  resolved to the same inode, and the user's edited note was truncated — with AC 9's
+  byte-equality resolver never running, and the entry then acked so the outbox dropped it.
+  The attended manual gates could not have caught this: AC 9 was staged with exact-case
+  names, the direction that works. The ENOENT anomaly seen during the AC 11 run was the
+  same underlying bug showing its harmless face (a stale index making a read fail safely);
+  the destructive direction went unnoticed. Also flagged: the startup pass fired in
+  `onload()` before the index finished building.
+- 2026-07-24 — **CLEAN, 0 blocking** (re-review of commit `978757b`). `exists`/`read`
+  now go through `vault.adapter` (the filesystem, matching the semantics the write lands
+  on); `createFolder` uses `stat().type === 'folder'`, so a file squatting the folder path
+  is no longer mistaken for a folder; the startup pass moved behind
+  `workspace.onLayoutReady`. Sanitizer additionally strips trailing dots (its documented
+  no-`..` guarantee was violated for `note.` → `note..md`) and caps the stem at 200 bytes
+  (uncapped, a long feed title threw ENAMETOOLONG on every pass and stranded the entry in
+  the outbox permanently). 41 tests green. Status → approved. Surviving advisories carried
+  to Asana `1216860831880593`.
