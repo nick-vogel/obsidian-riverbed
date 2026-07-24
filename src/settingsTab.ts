@@ -66,24 +66,39 @@ export class RiverbedSettingTab extends PluginSettingTab {
 					.setPlaceholder(String(DEFAULT_SETTINGS.intervalMinutes))
 					.setValue(String(this.plugin.settings.intervalMinutes))
 					.onChange(async (value) => {
+						// While typing, PERSIST only a legal value and otherwise do nothing.
+						// Rejecting per keystroke makes an ordinary edit impossible: this
+						// control's onChange fires on every input event, so clearing the field
+						// to retype reads as an empty string, and rewriting the text under the
+						// caret turns "select all, type 30" into "1530". A production build
+						// (floor 5) is worse still, because the first digit of any value from
+						// 10 to 49 is itself sub-floor and would be rejected outright.
 						const parsed = Number(value);
-						// Reject rather than clamp silently, so a sub-floor value never
-						// persists and the user is told why it did not take.
-						if (!Number.isFinite(parsed) || parsed < floor) {
-							new Notice(
-								`Riverbed: the sync interval cannot be below ${floor} minute${floor === 1 ? '' : 's'}.`,
-							);
-							const kept = clampInterval(this.plugin.settings.intervalMinutes, floor);
-							this.plugin.settings.intervalMinutes = kept;
-							text.setValue(String(kept));
-							await this.plugin.saveSettings();
-							return;
-						}
+						if (!Number.isFinite(parsed) || parsed < floor) return;
 						this.plugin.settings.intervalMinutes = parsed;
 						await this.plugin.saveSettings();
 						// Rearm the timer, or the change only takes effect on the next restart.
 						this.plugin.rescheduleSync();
 					});
+
+				// Validate on COMMIT, not on input. Persistence is already safe (onChange
+				// above never stores a sub-floor value); this restores the displayed value
+				// once the user leaves the field and tells them why their entry did not take.
+				text.inputEl.addEventListener('blur', async () => {
+					const parsed = Number(text.inputEl.value);
+					if (Number.isFinite(parsed) && parsed >= floor) {
+						text.setValue(String(parsed));
+						return;
+					}
+					new Notice(
+						`Riverbed: the sync interval cannot be below ${floor} minute${floor === 1 ? '' : 's'}.`,
+					);
+					const kept = clampInterval(this.plugin.settings.intervalMinutes, floor);
+					this.plugin.settings.intervalMinutes = kept;
+					text.setValue(String(kept));
+					await this.plugin.saveSettings();
+					this.plugin.rescheduleSync();
+				});
 			});
 
 		new Setting(containerEl)

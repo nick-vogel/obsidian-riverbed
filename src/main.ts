@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, TFolder } from 'obsidian';
+import { Notice, Plugin, normalizePath } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	DEV_INTERVAL_FLOOR,
@@ -45,8 +45,12 @@ export default class RiverbedPlugin extends Plugin {
 			},
 		});
 
-		// Startup pass, then the recurring one.
-		void this.runSync('startup');
+		// Startup pass behind onLayoutReady: during onload the vault is still emitting its
+		// load-time events, so a pass fired here races an index that is not finished being
+		// built. The recurring timer is armed immediately either way.
+		this.app.workspace.onLayoutReady(() => {
+			void this.runSync('startup');
+		});
 		this.rescheduleSync();
 
 		console.log(`Riverbed: loaded (sync interval floor ${this.intervalFloor} min)`);
@@ -129,17 +133,24 @@ export default class RiverbedPlugin extends Plugin {
 		this.statusBar?.setText(`${text} (${stamp})`);
 	}
 
-	/** The production SyncVault: the narrow interface the sync pass runs against. */
+	/**
+	 * The production SyncVault: the narrow interface the sync pass runs against.
+	 *
+	 * Existence and reads go through `vault.adapter` (the filesystem) rather than
+	 * `getAbstractFileByPath` (Obsidian's in-memory index). The index is CASE-SENSITIVE
+	 * while APFS and NTFS are not, so the index answers "no such file" for `Note.md` when
+	 * `note.md` is on disk — and `Vault.create` would then truncate the user's existing
+	 * note, with the collision resolver never getting a say. The index is also stale for
+	 * anything written out of band (iCloud, git, another tool), which is normal for a
+	 * vault. The adapter matches the semantics of the filesystem the write actually lands
+	 * on, which is the only comparison that makes the guard sound.
+	 */
 	private vaultAdapter(): SyncVault {
 		const vault = this.app.vault;
 		return {
-			exists: async (path) => vault.getAbstractFileByPath(path) !== null,
-			read: async (path) => {
-				const file = vault.getAbstractFileByPath(path);
-				if (!(file instanceof TFile)) throw new Error(`not a file: ${path}`);
-				// read, not cachedRead: the byte comparison must see current disk contents.
-				return vault.read(file);
-			},
+			exists: async (path) => vault.adapter.exists(normalizePath(path)),
+			// read, not cachedRead: the byte comparison must see current disk contents.
+			read: async (path) => vault.adapter.read(normalizePath(path)),
 			create: async (path, contents) => {
 				// Fault injection for the AC 8 integration gate, dev builds only: a capture
 				// whose filename contains this sentinel fails to write, so the ack-only-on-
@@ -153,8 +164,13 @@ export default class RiverbedPlugin extends Plugin {
 				await vault.create(path, contents);
 			},
 			createFolder: async (path) => {
-				if (vault.getAbstractFileByPath(path) instanceof TFolder) return;
-				await vault.createFolder(path);
+				const p = normalizePath(path);
+				// stat, not the index, for the same reason as exists/read above. A folder
+				// already there is fine; a FILE sitting at that path is not, and must not be
+				// mistaken for one.
+				const st = await vault.adapter.stat(p);
+				if (st?.type === 'folder') return;
+				await vault.createFolder(p);
 			},
 		};
 	}

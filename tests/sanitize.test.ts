@@ -60,3 +60,38 @@ describe('sanitizeFilename', () => {
 		expectSafe(out);
 	});
 });
+
+describe('sanitizeFilename — trailing dots and length', () => {
+	it('strips trailing dots so the no-".." guarantee actually holds', () => {
+		// Regression: `note.` used to become `note..md`, violating this function's own
+		// documented invariant and the safety predicate the rest of this suite asserts.
+		expect(sanitizeFilename('note.', 'id1')).toBe('note.md');
+		expect(sanitizeFilename('trailing...', 'id1')).toBe('trailing.md');
+		expect(sanitizeFilename('spaced . ', 'id1')).toBe('spaced.md');
+		expectSafe(sanitizeFilename('note.', 'id1'));
+		expectSafe(sanitizeFilename('trailing...', 'id1'));
+	});
+
+	it('caps a very long name to stay inside the filesystem component limit', () => {
+		// Uncapped, a long feed title throws ENAMETOOLONG on every pass: never acked,
+		// re-reported each poll, stranded in the outbox forever.
+		const long = 'a'.repeat(500);
+		const out = sanitizeFilename(long, 'id1');
+		expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(255);
+		expect(out.endsWith('.md')).toBe(true);
+		expectSafe(out);
+	});
+
+	it('caps by BYTES, not characters, and never splits a character', () => {
+		// A non-Latin title costs up to 4 bytes per character, so a character budget
+		// would sail past the byte limit it is meant to respect.
+		const out = sanitizeFilename('日'.repeat(300), 'id1');
+		expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(255);
+		expect(out).not.toContain('�');
+		expectSafe(out);
+	});
+
+	it('falls back when a name is nothing but dots and spaces', () => {
+		expect(sanitizeFilename('  ... ', 'abc')).toBe('riverbed-capture-abc.md');
+	});
+});

@@ -13,13 +13,11 @@ export type TestConnectionResult =
 	| { kind: 'unexpected-status'; status: number }
 	| { kind: 'unreachable' };
 
-/**
- * Strip trailing slashes so a self-hosted base URL entered as `https://host/` does not
- * produce a double-slashed `https://host//app-outbox`.
- */
-export function normalizeBaseUrl(baseUrl: string): string {
-	return baseUrl.trim().replace(/\/+$/, '');
-}
+// Lives in the obsidian-free src/url.ts so it can be unit tested (this module imports
+// `obsidian`, which ships types only and cannot be loaded by the test runner).
+// Re-exported here so existing importers keep working.
+export { normalizeBaseUrl } from './url';
+import { normalizeBaseUrl } from './url';
 
 /**
  * `GET /app-outbox` purely to classify the configured base URL + token.
