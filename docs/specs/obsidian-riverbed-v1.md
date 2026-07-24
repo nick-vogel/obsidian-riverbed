@@ -1,6 +1,7 @@
 ---
 title: Obsidian Riverbed companion plugin v1
 status: approved
+asana: 1216858370185470
 created: 2026-07-24
 updated: 2026-07-24
 ---
