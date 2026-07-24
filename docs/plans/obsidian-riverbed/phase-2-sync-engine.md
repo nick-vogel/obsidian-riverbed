@@ -418,3 +418,70 @@ server-down recovery and notifications toggle. Enumerated for a single sitting i
   `src/outboxClient.ts` (`normalizeBaseUrl` exported, already used by `testConnection`) and
   against Step 6's gate (b) (`getPending` stub now explicitly throwable). No new
   contradiction introduced by the edit. Status → approved.
+
+## Manual gate results (2026-07-24, attended session with Nick)
+
+Run against the live dev stack in a throwaway vault, dev build (fault injection active,
+interval floor 1). Every integration gate closed. Baselines were captured from
+`GET /app-outbox` BEFORE each sync and diffed byte-for-byte afterward.
+
+**Method note (deviation from the plan, deliberate):** entries were staged by editing
+`saves` documents in Mongo rather than by editing a capture template. For AC 12 this is
+the ONLY possible method — the reader's `renderFilename` rejects `/` and `\` outright, so
+the product cannot emit a traversal even in principle; the gate is about the plugin not
+trusting a hostile/buggy server, which requires bypassing the server's own validation. The
+same mechanism was reused for AC 8's sentinel and for volume staging. What is under test
+(plugin behavior given a server response) is unchanged. 60 cloned entries were inserted for
+the volume gates and deleted afterward (`_gateClone` marker); no real save was destroyed.
+
+- **AC 6 — PASS.** 4 captures, every file byte-identical to `renderedMarkdown`, zero extra
+  files. (An apparent 2-byte mismatch on an earlier run was a measurement artifact:
+  character count vs UTF-8 byte count on a curly apostrophe, not a content difference.)
+- **AC 7 — PASS.** Outbox returned `items: []` after the pass; a second sync created no
+  new files.
+- **AC 8 — PASS.** Sentinel entry (`riverbed-fail-write` in the filename) among healthy
+  ones: healthy two written + acked, sentinel NOT written, NOT acked, still pending,
+  `syncError` recorded server-side as "induced write failure (dev fault injection)", and
+  the reader's Outbox view showed it failed WITH a Retry affordance (confirmed visually by
+  Nick). Sentinel removed → next sync wrote it byte-identical and acked it.
+- **AC 9 — PASS, all three cases, no overwrites.** (a) identical bytes at target → no new
+  file, entry acked; (b) different bytes → `dup-b-2.md`, original untouched; (c) target and
+  `-2` both different → `dup-c-3.md`, both originals untouched. 3/3 acked.
+- **AC 10 — PASS.** Destination folder deleted; sync recreated it and delivered into it.
+- **AC 12 — PASS.** `../../ev:il?.md` sanitized to `ev-il-.md` INSIDE the folder.
+  Containment proven against pre-sync snapshots of the vault root and `~/Desktop` (an
+  escape of two levels would have landed on the Desktop): `~/Desktop` byte-for-byte
+  unchanged, vault root gained only the destination folder.
+- **AC 20 — PASS.** 60 uniquely-named entries staged to widen the window; `Sync now` fired
+  twice in immediate succession → exactly 60 files, ZERO `-N` duplicates, outbox drained.
+- **AC 11 — PASS (on a clean re-run).** Interval 1: staged entry delivered in 45s with no
+  manual command. Interval 2: two ticks ~2 min apart each delivered its own batch (40 then
+  15), no duplicates, and NO `sync already in progress` line — no leaked timer.
+  *First attempt was inconclusive and correctly not recorded as a pass:* an
+  `already in progress` line appeared, but was explainable by test-harness contamination
+  (files had been moved out with `mv` under a running Obsidian, leaving a stale vault cache
+  that made passes slow via ENOENT-per-entry). Obsidian was restarted to rebuild the index
+  and the gate re-run cleanly. Lesson: reset between gates THROUGH Obsidian, not behind it.
+- **AC 13 — PASS.** Server stopped mid-schedule: status bar showed
+  `Riverbed: sync failed (4:36:48 PM)` with a red icon, console showed only the caught
+  `sync (scheduled) failed: net::ERR_CONNECTION_REFUSED` (no stack trace, no unhandled
+  rejection). Server restarted → the NEXT scheduled tick recovered all 5 entries 51s later
+  with no intervention.
+- **AC 14 — PASS.** Notifications off: delivering sync produced no Notice, status bar still
+  updated. Notifications on: delivering sync produced the Notice. Status bar showed outcome
+  + timestamp in both states. (A `synced 0` reading observed alongside the Notice was a
+  manual run landing immediately after an auto tick that had already delivered the batch —
+  file mtimes confirmed a single pass at 16:40:48; the Notice is gated on `delivered > 0`
+  and so came from the auto pass.)
+
+**Non-blocking observations raised to Asana (Riverbed project), not defects in this
+phase:** `1216863724808780` ribbon icon carrying sync state, `1216863923333571` in-flight
+and no-op feedback, `1216876861195652` reader template emits no frontmatter/article body,
+`1216863925152767` outbox failure UX (raw error text, stranded captures unreadable),
+`1216878934354676` token-creation UX.
+
+**Advisory surfaced by the harness, worth a look at review-code:** `resolveTarget` calls
+`vault.exists()` (Obsidian's in-memory cache) then `vault.read()`. If the cache is stale
+because a file was removed outside Obsidian (iCloud, git, another tool — all normal for a
+vault), `read()` throws ENOENT. Behavior degrades correctly (entry fails, is reported, and
+retries), but treating ENOENT-on-read as "not there, write it" would be strictly better.

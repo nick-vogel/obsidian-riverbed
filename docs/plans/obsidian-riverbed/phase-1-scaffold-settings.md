@@ -66,7 +66,7 @@ network yet.
 
 Verify: copy `main.js` + `manifest.json` into a test vault's
 `.obsidian/plugins/riverbed/`, reload Obsidian, enable the plugin in Community plugins.
-Open the developer console (Ctrl/Cmd-Shift-I): the load line prints and there are
+Open the developer console (Cmd-Option-I on macOS, Ctrl-Shift-I elsewhere): the load line prints and there are
 **zero** errors or warnings attributable to the plugin on enable and on disable.
 
 *(Dependency: a local Obsidian test vault. Nick has Obsidian installed; a throwaway
@@ -379,3 +379,31 @@ VCS-exclusion warning, plus token scope and revocation.
   site, forced by the gate itself); the three advisories carried since round 1 (`NaN` on
   blank interval input, unstripped token whitespace, malformed-JSON-on-200 mislabeling)
   remain accurate and still correctly deferred.
+
+## Manual gate results (2026-07-24, attended session with Nick)
+
+Run against the live dev stack (reader `:3000`, Mongo `:27019`) in a throwaway vault at
+`~/Desktop/riverbed-test-vault`, dev build (`pnpm dev`, interval floor 1). All Phase 1
+gates now closed; the headless gates (Step 1, Step 5) were already closed by the
+autonomous run.
+
+- **AC 1 (Step 1) — PASS (headless).** `pnpm install`, `pnpm build` emits `main.js`,
+  manifest/package version equality, `tsc --noEmit` clean.
+- **AC 2 (Step 2) — PASS, after a defect was found and fixed.** First attempt FAILED:
+  enabling the plugin logged `sync (startup) failed: net::ERR_NAME_NOT_RESOLVED`. Cause:
+  `onload()` called `runSync('startup')` and armed the interval unconditionally, so a
+  never-configured install (empty token, default `baseUrl`) hit the network on every launch
+  and every tick. Fixed by adding `isConfigured()` (pure, in `settings.ts`) and guarding
+  `runSync` — status bar reads `Riverbed: not configured`, no network call; a manual
+  trigger additionally shows a Notice. 5 unit tests added (`tests/settings.test.ts`).
+  Re-verified: load line only, clean on enable AND disable, no recurrence after 60s.
+- **AC 3 (Step 3) — PASS.** Five non-default values set, full `Cmd-Q` and relaunch, all
+  five persisted; verified independently in `data.json` on disk. Sub-floor interval (`0`)
+  rejected and did not persist (disk still read `2` afterward).
+- **AC 4 (Step 4) — PASS.** Three distinguishable outcomes against dev: real token →
+  "connected"; corrupted token → "authentication failed"; server stopped → "could not
+  reach".
+- **AC 5 (Step 5) — PASS (headless).** README Security section present.
+
+Note: the plan's devtools shortcut was wrong for macOS (`Ctrl/Cmd-Shift-I`); corrected to
+`Cmd-Option-I on macOS, Ctrl-Shift-I elsewhere`.

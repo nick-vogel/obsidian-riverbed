@@ -28,6 +28,19 @@ export const PROD_INTERVAL_FLOOR = 5;
 export const DEV_INTERVAL_FLOOR = 1;
 
 /**
+ * Whether the plugin has enough configuration to talk to a server at all. Guards every
+ * sync trigger: an install that has never been set up must make no network call, so it
+ * neither logs an error on each launch nor sends an empty-token request to whatever the
+ * default base URL points at.
+ *
+ * Deliberately a presence check, not validation — a wrong-but-present URL or a revoked
+ * token is a connection failure the user should SEE reported, not a silent skip.
+ */
+export function isConfigured(settings: RiverbedSettings): boolean {
+	return settings.baseUrl.trim() !== '' && settings.token.trim() !== '';
+}
+
+/**
  * Raise a sub-floor interval up to the floor. Applied at load time as well as in the
  * settings control, so a value persisted under a dev build's floor of 1 cannot keep
  * running sub-floor once the same data.json is loaded by a production build.

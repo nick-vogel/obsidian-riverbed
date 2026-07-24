@@ -5,6 +5,7 @@ import {
 	PROD_INTERVAL_FLOOR,
 	RiverbedSettings,
 	clampInterval,
+	isConfigured,
 } from './settings';
 import { RiverbedSettingTab } from './settingsTab';
 import { HttpOutboxGateway } from './outboxClient';
@@ -84,6 +85,18 @@ export default class RiverbedPlugin extends Plugin {
 	 * that dies silently costs the user captures without ever telling them.
 	 */
 	async runSync(trigger: 'manual' | 'startup' | 'scheduled') {
+		// An unconfigured plugin must never touch the network. Without this, enabling the
+		// plugin fires a startup pass with an empty token against the default base URL, and
+		// the timer repeats it forever: a console error on every launch, and once the
+		// default host is live, a request from every install that was never set up.
+		if (!isConfigured(this.settings)) {
+			this.setStatus('Riverbed: not configured');
+			if (trigger === 'manual' && this.settings.notifications) {
+				new Notice('Riverbed: set your server URL and API token in settings first.');
+			}
+			return;
+		}
+
 		try {
 			const result = await this.runner.run({
 				vault: this.vaultAdapter(),

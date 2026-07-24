@@ -80,7 +80,7 @@ and phase 3.
 ### The manual gate checklist (batched — this is the whole blocker)
 
 **Phase 1**
-1. **AC 2** — enable the plugin in Community plugins; developer console (Cmd-Shift-I) shows
+1. **AC 2** — enable the plugin in Community plugins; developer console (Cmd-Option-I on macOS, Ctrl-Shift-I elsewhere) shows
    the `Riverbed: loaded` line and **zero** errors/warnings from the plugin, on enable and
    on disable.
 2. **AC 3** — set all five settings to non-defaults, fully quit and relaunch Obsidian,
