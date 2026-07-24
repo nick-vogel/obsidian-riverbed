@@ -38,7 +38,7 @@ minify/sourcemap and injects the build-time `IS_DEV` define — see Step 3),
 file — do not overwrite; it already excludes `.pipeline-loop-logs/`), and `CLAUDE.md`
 carrying exactly two pipeline lines plus a one-paragraph repo description:
 
-    Asana project: Personal
+    Asana project: Riverbed
     Second brain: /Users/nick/Library/Mobile Documents/iCloud~md~obsidian/Documents/Knowsmore/personal/riverbed
 
 Also build `src/global.d.ts` — `declare const IS_DEV: boolean;` — the ambient

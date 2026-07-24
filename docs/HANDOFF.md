@@ -21,7 +21,7 @@ missing client.
 - **Plans:** `docs/plans/obsidian-riverbed/phase-{1,2,3}-*.md`.
 - **No git remote exists yet.** Creating `nick-vogel/obsidian-riverbed` is Phase 3 Step 2,
   and public-vs-private is Nick's call at that point, so nothing has been pushed.
-- **Asana** (project Personal): parent `1216858370185470`; subtasks Phase 1
+- **Asana** (project Riverbed, gid `1216862089782589`): parent `1216858370185470`; subtasks Phase 1
   `1216860990863548`, Phase 2 `1216860831880593`, Phase 3 `1216860986917917`. **All three
   are still open** — a subtask closes only on a clean `/eng:review-code`, and no phase can
   be review-clean while its GUI gates are unverified.

@@ -9,5 +9,5 @@ in the reader's Outbox view. The outbox contract is ground truth and lives in th
 `riverbed` repo at `docs/outbox-api.md`; auth is `Authorization: Token <token>` (never
 `Bearer`, never `JWT`). All HTTP goes through Obsidian's `requestUrl`.
 
-Asana project: Personal
+Asana project: Riverbed
 Second brain: /Users/nick/Library/Mobile Documents/iCloud~md~obsidian/Documents/Knowsmore/personal/riverbed

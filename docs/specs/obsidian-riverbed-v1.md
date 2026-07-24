@@ -21,7 +21,7 @@ delivered entries, and reports failures back so they surface in the reader's Out
 view. Success is dogfood: a save made in the Riverbed reader appears in the Knowsmore
 vault's `inbox/` and rides the normal sort pass, with no manual step in between.
 
-Asana: `1216858370185470` (Riverbed — Obsidian companion plugin), project Personal.
+Asana: `1216858370185470` (Riverbed — Obsidian companion plugin), project Riverbed.
 
 ## User stories
 
@@ -219,7 +219,7 @@ Grouped by expected delivery phase; create-plan owns the final phase split. ACs 
   instance).
 - Eng pipeline: net-new project → one project branch (`project/obsidian-riverbed-v1`),
   per-phase commits reviewed as they land, ONE rollup PR to main at the end.
-- Asana project: Personal. Second brain:
+- Asana project: Riverbed. Second brain:
   `/Users/nick/Library/Mobile Documents/iCloud~md~obsidian/Documents/Knowsmore/personal/riverbed`
   (the plugin is part of the Riverbed product; its docs sync to the same hub). Write
   both lines into the new repo's CLAUDE.md at scaffold time.
