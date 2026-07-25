@@ -62,79 +62,62 @@ dev fault-injection sentinel confirmed ABSENT from the production bundle.
 They are not a substitute for an adversarial reader. Both defects survived a full attended
 pass.
 
-## Exact next action — the ordered list
+## Exact next action — what is left
 
-Phases 1 and 2 are DONE and review-clean. The Phase 3 plan is APPROVED (`status: approved`,
-commit `5265e1c`). Nothing needs re-reviewing. Work this list top to bottom.
+Phases 1 and 2 are DONE and review-clean. Phase 3's plan is APPROVED and its **Steps 2 and 3
+are BUILT** (2026-07-25): the private repo exists, release `0.1.0` is cut with verified
+assets, and the README is complete. **AC 19 is CLOSED.** What remains is four human gates
+and the close-out.
 
-### The one blocker, and it only blocks Step 4
+### A. Gates that need you, in one Obsidian sitting (~20 min)
 
-**Asana `1216884314903927`** — the capture-format change (merge the older duplicate
-`1216876861195652` into it; the newer carries the technical detail, the older the
-showcase-mismatch framing). This is **reader-side, in the `riverbed` repo**, not here.
+Prod is live at `https://riverbedfeed.com`. Mint an outbox token there (Settings, API
+tokens) before you start.
 
-What it is: captures currently render as title / url / source-date / `why:` and nothing else.
-No YAML frontmatter, no article body. The plugin writes `renderedMarkdown` **verbatim** by
-spec (AC 6, verified byte-identical), so it cannot be fixed in the plugin.
+1. **AC 15 — HTTPS round trip (Step 1).** Point the plugin at `https://riverbedfeed.com`
+   with that token. `curl -s https://riverbedfeed.com/app-outbox -H "Authorization: Token
+   $T" > pre.json` with entries pending, run `Riverbed: Sync now`, `diff` each written file
+   against its entry's `renderedMarkdown` from `pre.json` (all byte-identical), then
+   re-`curl` and confirm those entries are gone from pending.
+2. **AC 16 — BRAT install (Step 2, second half).** In a FRESH vault: install BRAT, give it a
+   **GitHub personal access token with read access to the private repo** (fine-grained,
+   Contents: Read-only, scoped to `nick-vogel/obsidian-riverbed`), then "Add beta plugin"
+   with `nick-vogel/obsidian-riverbed`. It must install, enable with zero console errors,
+   and complete a sync.
+3. **AC 17 — README cold run (Step 3).** In a clean vault, follow README.md start to finish
+   using ONLY what it says, no outside knowledge, and reach a syncing plugin. Anything that
+   needed knowledge you already had is a README gap: fix it and re-run.
 
-Why it blocks the dogfood specifically: **`renderedMarkdown` is generated and STORED at save
-time.** Every capture delivered into the REAL vault while the old template is live keeps the
-content-less shape permanently and cannot be backfilled. Dogfooding first manufactures exactly
-the notes this change exists to eliminate, in Knowsmore.
+**USE DISPOSABLE SAVES for all three.** A sync ACKS what it delivers and an acked entry
+leaves the outbox permanently, so anything you actually want in Knowsmore must stay unsaved
+until AC 18. This already cost 8 real dev saves (Asana `1216891949686167`).
 
-**It does NOT block Steps 1-3.** Those close ACs 15, 16, 17 and 19, write only into throwaway
-test vaults, and are unaffected by the template's shape (Step 1 proves the TLS + Token path
-and byte-identity; Step 2 is repo/release mechanics on a binary the reader-side change does
-not touch; Step 3 is documentation). **Do Steps 1-3 now**, and leave Step 4 parked until the
-capture format lands. That way the only thing left afterward is the dogfood itself.
+### B. Then, once the capture format lands
 
-**One trap while doing Steps 1-3:** a sync ACKS the entries it delivers, and an acked entry
-leaves the outbox for good. If you test against your real prod outbox, those saves land in a
-throwaway vault and will NOT arrive later when you dogfood into Knowsmore. **Make disposable
-saves in the reader for Steps 1-3**, and keep anything you actually want in your vault unsaved
-until Step 4. (This already happened once on dev: 8 real saves are sitting acked, delivered
-into `~/Desktop/riverbed-test-vault` rather than Knowsmore. See Asana `1216891949686167`.)
+4. **AC 18 — dogfood (Step 4).** PARKED until Asana `1216884314903927` ships, because
+   `renderedMarkdown` is frozen at save time (detail below). Then: install the PRODUCTION
+   build into Knowsmore, confirm `grep -c riverbed-fail-write main.js` returns `0`, folder
+   `inbox`, real token, make a save, and **run `/km:sort-inbox`** to prove the capture files
+   exactly like any other.
 
-### 1. Phase 3 Step 1 — HTTPS end-to-end (AC 15)
+### C. Close out
 
-Prod is LIVE at `https://riverbedfeed.com` (v1.0.0, 2026-07-25), so this closes against
-production. Mint an outbox token there (Settings → API tokens), point the plugin's base URL
-at it, and prove a round trip by BYTES: `curl` `GET /app-outbox` before syncing, run
-`Riverbed: Sync now`, `diff` each written file against that entry's `renderedMarkdown`,
-re-`curl` to confirm the entries are no longer pending.
+`/eng:commit`, then `/eng:review-code`, which closes subtask `1216860986917917` and then the
+parent `1216858370185470`. **Then the rollup PR:** `main` does NOT exist yet (the repo's
+default branch is currently `project/obsidian-riverbed-v1`), so creating `main` and opening
+the single rollup PR into it is close-out work, per the never-commit-to-main rule.
 
-### 2. Phase 3 Step 2 — private repo + BRAT release (AC 16, AC 19)
+## The capture-format blocker, and what it does NOT block
 
-Create `nick-vogel/obsidian-riverbed` **PRIVATE** (Nick's call, 2026-07-25). Push the branch.
-Cut a release with `main.js` + `manifest.json` as assets and `versions.json` in the repo.
+**Asana `1216884314903927`** (merge the older duplicate `1216876861195652` into it). This is
+**reader-side, in the `riverbed` repo**. Captures render as title / url / source-date /
+`why:` and nothing else: no frontmatter, no article body. The plugin writes
+`renderedMarkdown` verbatim by spec, so it cannot be fixed here.
 
-- **Tag is bare semver, NO `v` prefix.** AC 19 requires tag == manifest version == package
-  version literally; `v0.1.0` fails it. Obsidian's own guide documents the bare form.
-- **Private repo means BRAT needs a personal access token** to install from it. Have one
-  ready, or the Step 2 gate cannot run.
-- Gate: `gh release view <tag> --json tagName,assets`; the `node -e` version-equality check;
-  then BRAT "Add beta plugin" into a FRESH vault where it loads clean and completes a sync.
-
-### 3. Phase 3 Step 3 — README (AC 17)
-
-Cover BRAT install (including the private-repo token step), manual install, minting a token,
-configuring a self-hosted base URL, every setting, and the token-plaintext warning. Gate: a
-cold run in a clean vault, using only what the README says, reaches a syncing plugin.
-
-### 4. Phase 3 Step 4 — dogfood in the real vault (AC 18) — PARKED until the capture format lands
-
-**PRODUCTION build only** (the BRAT release, or `pnpm build`). Never `pnpm dev` — that bundle
-carries the `riverbed-fail-write` fault-injection sentinel and a 1-minute floor. Confirm
-`grep -c riverbed-fail-write main.js` returns `0` before it touches real data. Install into
-Knowsmore's `.obsidian/plugins/riverbed/` (gitignored there, verified), folder `inbox`, real
-token. Gate: a real save lands, and **running `/km:sort-inbox` files it exactly like any other
-capture** with no special-casing.
-
-### 5. Close out
-
-`/eng:commit`, then `/eng:review-code` — which closes subtask `1216860986917917` and then the
-parent `1216858370185470`. Full step detail lives in
-`docs/plans/obsidian-riverbed/phase-3-release-dogfood.md`.
+It blocks **only AC 18**, because `renderedMarkdown` is generated and **STORED at save
+time**: any capture delivered into the real vault under the old template keeps the
+content-less shape permanently and cannot be backfilled. ACs 15, 16, 17 and 19 write only
+into throwaway vaults and are unaffected.
 
 ## Release policy (Nick, 2026-07-25)
 
