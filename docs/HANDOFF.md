@@ -62,26 +62,81 @@ dev fault-injection sentinel confirmed ABSENT from the production bundle.
 They are not a substitute for an adversarial reader. Both defects survived a full attended
 pass.
 
-## Exact next action
+## Exact next action — the ordered list
 
-**The Phase 3 review-plan is DONE** — corrected 2026-07-25. The plan reads `status: approved`
-and commit `5265e1c` records "phase 3 approved after review (6 blocking fixed)". This section
-previously still told you to run it, which would have re-reviewed an approved plan.
+Phases 1 and 2 are DONE and review-clean. The Phase 3 plan is APPROVED (`status: approved`,
+commit `5265e1c`). Nothing needs re-reviewing. Work this list top to bottom.
 
-**But do the capture-format change FIRST, before Phase 3's dogfood.** Asana `1216884314903927`
-(merge it with the older duplicate `1216876861195652` first; the newer one carries the technical
-detail). Captures do not currently include the article body, and **`renderedMarkdown` is generated
-and STORED at save time** — so every capture made while dogfooding keeps the content-less shape
-permanently. Dogfooding before the change means generating exactly the link-plus-why notes the
-change exists to eliminate, and they cannot be backfilled by changing the template later.
+### 0. FIRST, and it is not in this repo: the capture-format change
 
-Then: `/eng:implement-plan docs/plans/obsidian-riverbed/phase-3-release-dogfood.md`, then
-`/eng:commit`, then `/eng:review-code`, which closes subtask `1216860986917917` and then the
-parent `1216858370185470`.
+**Asana `1216884314903927`** (merge the older duplicate `1216876861195652` into it; the newer
+carries the technical detail, the older carries the showcase-mismatch framing). This is
+**reader-side, in the `riverbed` repo**, not here.
 
-**The reader side is no longer a dependency:** Riverbed is LIVE at `https://riverbedfeed.com`
-(v1.0.0, 2026-07-25), so the plugin can point at production rather than a localhost dev server.
-Mint the outbox token there.
+What it is: captures currently render as title / url / source-date / `why:` and nothing else.
+No YAML frontmatter, no article body. The plugin writes `renderedMarkdown` **verbatim** by
+spec (AC 6, verified byte-identical), so this cannot be fixed in the plugin.
+
+Why it blocks the dogfood: **`renderedMarkdown` is generated and STORED at save time.** Every
+capture made while dogfooding keeps the content-less shape permanently and cannot be
+backfilled by changing the template afterward. Dogfooding first manufactures exactly the
+notes this change exists to eliminate, in the real vault.
+
+### 1. Phase 3 Step 1 — HTTPS end-to-end (AC 15)
+
+Prod is LIVE at `https://riverbedfeed.com` (v1.0.0, 2026-07-25), so this closes against
+production. Mint an outbox token there (Settings → API tokens), point the plugin's base URL
+at it, and prove a round trip by BYTES: `curl` `GET /app-outbox` before syncing, run
+`Riverbed: Sync now`, `diff` each written file against that entry's `renderedMarkdown`,
+re-`curl` to confirm the entries are no longer pending.
+
+### 2. Phase 3 Step 2 — private repo + BRAT release (AC 16, AC 19)
+
+Create `nick-vogel/obsidian-riverbed` **PRIVATE** (Nick's call, 2026-07-25). Push the branch.
+Cut a release with `main.js` + `manifest.json` as assets and `versions.json` in the repo.
+
+- **Tag is bare semver, NO `v` prefix.** AC 19 requires tag == manifest version == package
+  version literally; `v0.1.0` fails it. Obsidian's own guide documents the bare form.
+- **Private repo means BRAT needs a personal access token** to install from it. Have one
+  ready, or the Step 2 gate cannot run.
+- Gate: `gh release view <tag> --json tagName,assets`; the `node -e` version-equality check;
+  then BRAT "Add beta plugin" into a FRESH vault where it loads clean and completes a sync.
+
+### 3. Phase 3 Step 3 — README (AC 17)
+
+Cover BRAT install (including the private-repo token step), manual install, minting a token,
+configuring a self-hosted base URL, every setting, and the token-plaintext warning. Gate: a
+cold run in a clean vault, using only what the README says, reaches a syncing plugin.
+
+### 4. Phase 3 Step 4 — dogfood in the real vault (AC 18)
+
+**PRODUCTION build only** (the BRAT release, or `pnpm build`). Never `pnpm dev` — that bundle
+carries the `riverbed-fail-write` fault-injection sentinel and a 1-minute floor. Confirm
+`grep -c riverbed-fail-write main.js` returns `0` before it touches real data. Install into
+Knowsmore's `.obsidian/plugins/riverbed/` (gitignored there, verified), folder `inbox`, real
+token. Gate: a real save lands, and **running `/km:sort-inbox` files it exactly like any other
+capture** with no special-casing.
+
+### 5. Close out
+
+`/eng:commit`, then `/eng:review-code` — which closes subtask `1216860986917917` and then the
+parent `1216858370185470`. Full step detail lives in
+`docs/plans/obsidian-riverbed/phase-3-release-dogfood.md`.
+
+## Release policy (Nick, 2026-07-25)
+
+**The plugin ships by publishing a GitHub Release, matching how the app deploys** (the
+`riverbed` app deploys on Release publish; pushes do not deploy). Plan plugin releases
+alongside app releases rather than ad hoc. Standing rules that follow from it: bare-semver
+tags, `manifest.json` == tag == `package.json`, `versions.json` ACCUMULATES version →
+minAppVersion entries, and **never move or force-push a published tag** (BRAT and installed
+clients cache by tag, so a moved tag ships different bytes under a version someone already
+has). Roll forward to the next patch instead.
+
+**OPEN — needs Nick:** does "match the app" mean the plugin's version NUMBERS track the app's
+(app is at `1.0.0`, plugin is at `0.1.0`), or only that both ship release-driven? This
+changes what Step 2 tags, and a published tag must never be moved, so decide before cutting
+the release.
 
 ## CRITICAL — Phase 3 is almost entirely manual gates
 
@@ -92,8 +147,9 @@ from a headless process.
 
 ## Open items / dependencies
 
-- **Public vs private GitHub repo, Nick's open call** (Phase 3 Step 2, default public; the
-  code contains no secrets, verified in review).
+- **Repo visibility: PRIVATE** (decided 2026-07-25). Consequence for Step 2: BRAT needs a
+  personal access token to install from a private repo, so have one ready before that gate.
+  A public flip later is cheap and is the path a community-store listing would need.
 - **AC 15's dependency is RESOLVED.** Prod is live at `https://riverbedfeed.com` (v1.0.0,
   2026-07-25, verified 200), so AC 15 and the dogfood close against production directly. No
   tunnel, no prod-re-confirmation follow-up. Mint the outbox token there, not on dev.

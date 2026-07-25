@@ -54,9 +54,14 @@ Verify (reuse Phase 2's byte-level method, not a "looks synced" eyeball):
 
 ### Step 2 — BRAT-installable release + version hygiene  → closes AC 16, AC 19
 
-Create the GitHub repo `nick-vogel/obsidian-riverbed` (confirmed not to exist yet), push
-the branch, and cut a GitHub release whose assets are `main.js` + `manifest.json`, with
-`versions.json` present in the repo.
+Create the GitHub repo `nick-vogel/obsidian-riverbed` **PRIVATE** (Nick's call, 2026-07-25;
+confirmed not to exist yet), push the branch, and cut a GitHub release whose assets are
+`main.js` + `manifest.json`, with `versions.json` present in the repo.
+
+**Private has a concrete consequence for this step's gate: BRAT needs a personal access
+token to install from a private repo.** Have one ready before running the gate, or the
+"BRAT installs it" half cannot execute. A later public flip is cheap and is what any
+community-store listing would require.
 
 **Tag exactly `0.1.0` — bare semver, NO `v` prefix.** This is the single most common
 Obsidian-plugin release mistake and it fails AC 19 literally: AC 19 requires the tag to
@@ -80,7 +85,7 @@ Verify:
 in the fresh test vault; **and** a reachable Riverbed instance plus a token entered in that
 vault's settings — without those last two the "performs a sync" half of the gate cannot
 run at all. Public-vs-private is Nick's call here; BRAT supports private repos with a
-token, public is the low-friction path and is required for any future store listing.)*
+token, which this step now requires since the repo is private.)*
 
 ### Step 3 — Complete README  → closes AC 17
 
