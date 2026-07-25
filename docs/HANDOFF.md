@@ -94,11 +94,9 @@ from a headless process.
 
 - **Public vs private GitHub repo, Nick's open call** (Phase 3 Step 2, default public; the
   code contains no secrets, verified in review).
-- **AC 15 needs a non-localhost HTTPS instance.** The spec explicitly permits closing it
-  against "any HTTPS-tunneled dev instance", so a tunnel works and prod is NOT required. A
-  prod re-confirmation can follow later.
-- **Prod deploy is a SEPARATE track** (the reader, not this plugin) and blocks nothing
-  here. See `personal/riverbed/HANDOFF.md` in the vault.
+- **AC 15's dependency is RESOLVED.** Prod is live at `https://riverbedfeed.com` (v1.0.0,
+  2026-07-25, verified 200), so AC 15 and the dogfood close against production directly. No
+  tunnel, no prod-re-confirmation follow-up. Mint the outbox token there, not on dev.
 - **`minAppVersion` is an assumption: `1.5.0`.** NOT blocking.
 - **Surviving ADVISORY findings** from review-code are recorded on the two closed Asana
   subtasks (most on Phase 2, `1216860831880593`) for a follow-up batch. The one worth
@@ -109,6 +107,11 @@ from a headless process.
   **commit-time** validation. A tester who types a sub-floor value and only stares at the
   field will see nothing happen and report a false failure. They must leave the field (Tab
   or click away) for the Notice and the revert.
+- **Two follow-up tasks exist and are NOT part of Phase 3** (do not let them block it):
+  Asana `1216891949609905` (review-code advisory batch: the `capBytes` surrogate-pair bug
+  and its vacuous test, the unbound `onLayoutReady`, path-normalization mismatch, interval
+  upper bound, Windows reserved names, unguarded `res.json`) and `1216891949686167`
+  (gate-test cleanup: the throwaway vault, and Nick's 8 real saves currently all acked).
 - **Test staging note:** the phase-2 gates were staged by editing `saves` documents in
   MongoDB directly. For AC 12 that is the only possible method, since the reader's
   `renderFilename` rejects `/` outright and so cannot emit a traversal even in principle.
@@ -120,9 +123,9 @@ from a headless process.
 
 **NOT authorized past this point.** The original authorization (Nick, 2026-07-24) covered
 phases 1-2 code plus unit tests and is fully discharged. Phase 3 needs Nick's hands (GitHub
-release, BRAT, dogfood) and his decisions (repo visibility). Running `/eng:review-plan` on
-the Phase 3 plan is safe and unblocked; **implementation past that point requires explicit
-re-authorization.**
+release, BRAT, dogfood) and his decisions (repo visibility). The Phase 3 review-plan is already
+DONE (approved), so there is no remaining unblocked automated step: **the next action is
+implementation, and it requires explicit re-authorization.**
 
 ## Dev stack
 

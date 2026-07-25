@@ -30,14 +30,15 @@ current as of that date.
 Point the plugin at a non-localhost **HTTPS** Riverbed instance and confirm the
 `requestUrl` + `Token` path works over TLS.
 
-**Check prod readiness DIRECTLY, never by inference from PR #1's merge status.** Run
-`curl -o /dev/null -w '%{http_code}' https://riverbedfeed.com/` and require a 2xx/3xx. PR #1
-merged 2026-07-24 and that did NOT mean the deploy track landed: as of this writing the
-`riverbed` repo's v1 Phase 6 (Dockerfile → GHCR → Dokploy → DNS → R2) is a few steps in,
-prod does not resolve, and the long pole is Nick's provisioning task (Asana
-`1216878932705765`, due 2026-07-31). If prod is not answering, use an HTTPS tunnel
-(`cloudflared tunnel --url http://localhost:3000` or `ngrok http 3000`) in front of the dev
-stack — the spec explicitly permits closing AC 15 that way.
+**PROD IS LIVE as of 2026-07-25** — `https://riverbedfeed.com` returns 200 (v1.0.0). Use it
+directly; no tunnel needed, and this AC no longer has a fallback dependency. Still confirm
+with `curl -o /dev/null -w '%{http_code}' https://riverbedfeed.com/` at the moment you run
+the step rather than trusting this line, since it was true when written and a deploy can
+regress. (Historic note, kept because it is the reason this instruction exists: an earlier
+draft let a reader infer prod readiness from PR #1 having merged, which was wrong at the
+time — the merge was not the deploy. Check the host, not the git log.) If prod is ever down
+when this step runs, an HTTPS tunnel (`cloudflared tunnel --url http://localhost:3000`) in
+front of the dev stack still satisfies the spec.
 
 Set the plugin's base URL to the HTTPS origin and enter a token minted **against that
 instance** (a dev-stack token is not valid against prod and vice versa; a wrong-environment
@@ -128,7 +129,7 @@ track completes — a follow-up checklist item, not a blocker on this phase.)
 
 | Risk | Fallback |
 |---|---|
-| Prod instance not yet deployed when this phase runs (LIKELY: prod does not resolve as of 2026-07-24, and the deploy track is blocked on Nick's provisioning, due 2026-07-31) | AC 15 closes against an HTTPS tunnel in front of dev; the prod re-confirmation for 15/18 is an explicit follow-up, not a phase blocker (spec Dependencies). |
+| Prod instance unavailable when this phase runs (RESOLVED 2026-07-25: prod is live at `https://riverbedfeed.com`, v1.0.0, verified 200) | If it ever regresses, AC 15 closes against an HTTPS tunnel in front of dev; the spec permits it. No longer an expected path. |
 | BRAT install requires a public repo and Nick wants private | BRAT supports private repos with a token; or defer the public flip. Either closes AC 16; the choice is Nick's at Step 2. |
 | README cold-run reveals a gap only visible to a fresh user | Fix the gap and re-run; the cold-run IS the gate, so a miss is caught here, not in the field. |
 | The released 0.1.0 turns out broken | There is no prior version to roll back to, so roll FORWARD: fix, bump all three version fields, add the new entry to `versions.json`, and cut `0.1.1`. Never force-push or move an existing tag — BRAT and any installed client cache by tag, so a moved tag ships different bytes under a version someone already has. |
