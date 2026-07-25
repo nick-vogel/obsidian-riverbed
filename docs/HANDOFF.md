@@ -64,12 +64,24 @@ pass.
 
 ## Exact next action
 
-`/eng:review-plan docs/plans/obsidian-riverbed/phase-3-release-dogfood.md`
+**The Phase 3 review-plan is DONE** — corrected 2026-07-25. The plan reads `status: approved`
+and commit `5265e1c` records "phase 3 approved after review (6 blocking fixed)". This section
+previously still told you to run it, which would have re-reviewed an approved plan.
 
-(pinned Sonnet subagent, just-in-time.) The Phase 3 plan has **never been reviewed** and
-was drafted before phases 1-2 existed, so expect it to be stale. The review is the
-staleness gate. On approval: `/eng:implement-plan`, `/eng:commit`, `/eng:review-code`,
-which closes subtask `1216860986917917` and then the parent `1216858370185470`.
+**But do the capture-format change FIRST, before Phase 3's dogfood.** Asana `1216884314903927`
+(merge it with the older duplicate `1216876861195652` first; the newer one carries the technical
+detail). Captures do not currently include the article body, and **`renderedMarkdown` is generated
+and STORED at save time** — so every capture made while dogfooding keeps the content-less shape
+permanently. Dogfooding before the change means generating exactly the link-plus-why notes the
+change exists to eliminate, and they cannot be backfilled by changing the template later.
+
+Then: `/eng:implement-plan docs/plans/obsidian-riverbed/phase-3-release-dogfood.md`, then
+`/eng:commit`, then `/eng:review-code`, which closes subtask `1216860986917917` and then the
+parent `1216858370185470`.
+
+**The reader side is no longer a dependency:** Riverbed is LIVE at `https://riverbedfeed.com`
+(v1.0.0, 2026-07-25), so the plugin can point at production rather than a localhost dev server.
+Mint the outbox token there.
 
 ## CRITICAL — Phase 3 is almost entirely manual gates
 
