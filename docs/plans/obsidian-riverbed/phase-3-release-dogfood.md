@@ -153,6 +153,49 @@ built artifacts and are ref-agnostic, and BRAT reads the release, not the defaul
 
 ## Execution log
 
+### 2026-07-25 — Steps 2 and 3 built; headless gates closed
+
+Nick authorized Steps 1-3 (Step 4 stays parked on the capture-format change). Everything
+achievable without a human at a GUI is done; the gates needing hands are listed below and
+are NOT ticked.
+
+**Step 3 (README, AC 17) — BUILT.** Rewrote `README.md` to cover, in order: quick start,
+BRAT install (including the private-repo personal-access-token step), manual install,
+minting a token in Riverbed, every setting in a table, Test-connection's three
+distinguishable outcomes, self-hosting, the commit-time interval validation, automatic vs
+manual sync, what lands in the vault, the four data-safety guarantees (never overwrite,
+identical-bytes skip, no writes outside the folder, ack only after a confirmed write),
+failure diagnosis, and the plaintext-token security section carried from Phase 1. Commit
+`d9b0a1e`. Em-dashes stripped per repo convention (9 found, 0 remain).
+**Gate NOT closed:** AC 17 requires a cold run in a fresh vault by a human.
+
+**Step 2 (release + version hygiene, AC 16/19) — BUILT, AC 19 CLOSED.**
+- Created `nick-vogel/obsidian-riverbed` as **PRIVATE** (Nick's call 2026-07-25).
+- Pushed `project/obsidian-riverbed-v1`; set it as the default branch for now. `main` does
+  not exist yet: the single rollup PR to `main` is close-out work after review-code.
+- Cut release **`0.1.0`** (bare semver, no `v` prefix) from the branch tip, assets `main.js`
+  + `manifest.json`, notes written without em-dashes.
+
+  **AC 19 gates, all PASS (executed):**
+  - `gh release view 0.1.0 --json tagName,assets` -> tag `0.1.0`, assets `main.js`,
+    `manifest.json`.
+  - Tag carries no `v` prefix.
+  - `node -e` version-equality check exits 0: manifest `0.1.0` == package `0.1.0`, and
+    `versions.json` maps `0.1.0` -> `1.5.0`.
+  - Tag string equals manifest version literally.
+  - **Asset integrity:** downloaded the released `main.js` and diffed it against the local
+    production build. Byte-identical, and `grep -c riverbed-fail-write` on the RELEASED
+    asset returns `0`, so the shipped bundle carries no fault-injection sentinel.
+
+  **AC 16 gate NOT closed:** BRAT "Add beta plugin" into a fresh vault, loading clean and
+  completing a sync, needs a human plus a GitHub PAT with read access to the private repo.
+
+**Step 1 (HTTPS end-to-end, AC 15) — NOT STARTED.** Blocked on a human: the outbox token
+must be minted in the reader's GUI on prod, and the sync must be triggered inside Obsidian.
+Prod verified reachable (`https://riverbedfeed.com` -> 200).
+
+**Tree state at this point:** 41 tests green, `tsc --noEmit` clean, production build clean.
+
 ## Review log
 
 - 2026-07-24 — **6 blocking / 4 advisory** (independent Sonnet review-plan, just-in-time).
