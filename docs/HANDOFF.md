@@ -125,18 +125,20 @@ parent `1216858370185470`. Full step detail lives in
 
 ## Release policy (Nick, 2026-07-25)
 
-**The plugin ships by publishing a GitHub Release, matching how the app deploys** (the
-`riverbed` app deploys on Release publish; pushes do not deploy). Plan plugin releases
-alongside app releases rather than ad hoc. Standing rules that follow from it: bare-semver
+**The plugin ships by publishing a GitHub Release, the same MECHANISM the app deploys by**
+(the `riverbed` app deploys on Release publish; pushes do not deploy). **The two are on
+INDEPENDENT release cycles and independent version lines** — decided 2026-07-25, do not
+re-open. The plugin stays on its own `0.x` line and there is no attempt to match the app's
+`1.0.0`; a plugin distributed via BRAT that has not been dogfooded yet is honestly pre-1.0.
+Standing rules that follow: bare-semver
 tags, `manifest.json` == tag == `package.json`, `versions.json` ACCUMULATES version →
 minAppVersion entries, and **never move or force-push a published tag** (BRAT and installed
 clients cache by tag, so a moved tag ships different bytes under a version someone already
 has). Roll forward to the next patch instead.
 
-**OPEN — needs Nick:** does "match the app" mean the plugin's version NUMBERS track the app's
-(app is at `1.0.0`, plugin is at `0.1.0`), or only that both ship release-driven? This
-changes what Step 2 tags, and a published tag must never be moved, so decide before cutting
-the release.
+**RESOLVED 2026-07-25:** release-driven MECHANISM only, not version parity. Step 2 tags
+**`0.1.0`**, which is already what `manifest.json`, `package.json`, `versions.json` and the
+plan all say. No version work is needed before cutting the release.
 
 ## CRITICAL — Phase 3 is almost entirely manual gates
 

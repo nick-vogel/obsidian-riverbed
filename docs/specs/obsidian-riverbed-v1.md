@@ -229,7 +229,7 @@ Grouped by expected delivery phase; create-plan owns the final phase split. ACs 
 - ~~Public vs private GitHub repo at first release~~ **RESOLVED 2026-07-25: PRIVATE.**
   Nick's call. BRAT installs from a private repo with a personal access token, so AC 16
   still closes; a public flip later is cheap and is what a community-store listing would
-  need. Also settled: the plugin ships release-driven, matching how the app deploys.
+  need. Also settled: the plugin ships release-driven (publish a Release, the same mechanism the app deploys by), but on an INDEPENDENT release cycle and version line from the app. First release is `0.1.0`.
 
 Resolved at spec review (2026-07-24):
 - **Default base URL** → ship `https://riverbedfeed.com` as the default (AC 3). Nick's
