@@ -82,13 +82,42 @@ describe('sanitizeFilename — trailing dots and length', () => {
 		expectSafe(out);
 	});
 
-	it('caps by BYTES, not characters, and never splits a character', () => {
+	it('caps by BYTES, not characters', () => {
 		// A non-Latin title costs up to 4 bytes per character, so a character budget
 		// would sail past the byte limit it is meant to respect.
 		const out = sanitizeFilename('日'.repeat(300), 'id1');
 		expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(255);
-		expect(out).not.toContain('�');
 		expectSafe(out);
+	});
+
+	it('never splits a surrogate pair when truncating', () => {
+		// Regression: capBytes used slice(0,-1), which drops one UTF-16 CODE UNIT and so
+		// halves an emoji at the boundary, leaving a lone high surrogate that is written to
+		// disk as a replacement character. The previous assertion here checked the output
+		// did not CONTAIN U+FFFD, which JS string slicing can never produce, so it passed
+		// while the bug was live. Check for unpaired surrogates instead, which is the thing
+		// that actually goes wrong.
+		const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+		// Sweep the boundary: the failure only appears at the exact lengths where the pair
+		// straddles the byte budget.
+		for (let n = 150; n <= 260; n++) {
+			const out = sanitizeFilename('a'.repeat(n) + '\u{1F600}', 'id1');
+			expect(lone.test(out), `unpaired surrogate at n=${n}: ${out}`).toBe(false);
+			expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(255);
+		}
+	});
+
+	it('prefixes Windows reserved device names, which are illegal with any extension', () => {
+		// CON.md is as invalid as CON on Windows, and isDesktopOnly is false. Uncaught, the
+		// write fails on every pass and the entry is stranded in the outbox forever.
+		expect(sanitizeFilename('CON', 'id1')).toBe('riverbed-CON.md');
+		expect(sanitizeFilename('con.md', 'id1')).toBe('riverbed-con.md');
+		expect(sanitizeFilename('NUL.md', 'id1')).toBe('riverbed-NUL.md');
+		expect(sanitizeFilename('COM1', 'id1')).toBe('riverbed-COM1.md');
+		expect(sanitizeFilename('lpt9.md', 'id1')).toBe('riverbed-lpt9.md');
+		// Not reserved: a longer name that merely starts with one.
+		expect(sanitizeFilename('console.md', 'id1')).toBe('console.md');
+		expect(sanitizeFilename('connection', 'id1')).toBe('connection.md');
 	});
 
 	it('falls back when a name is nothing but dots and spaces', () => {

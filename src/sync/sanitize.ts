@@ -6,6 +6,14 @@
 const FORBIDDEN = new RegExp('[*"\\\\/<>:|?\\u0000-\\u001f\\u007f]', 'g');
 
 /**
+ * Windows reserved device names. These are not legal filenames on Windows with ANY
+ * extension (`CON.md` is as invalid as `CON`), and `isDesktopOnly` is false, so a capture
+ * titled "Con" or "Aux" would fail to write on every pass and be stranded in the outbox
+ * forever. Prefixing sidesteps it without mangling anything else.
+ */
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+
+/**
  * Reduce a server-supplied name to a bare, safe, `.md` filename.
  *
  * Guarantees on the result: non-empty, contains no `/` or `\`, contains no `..` segment,
@@ -54,21 +62,36 @@ export function sanitizeFilename(name: string, fallbackId: string): string {
 		out = `${out}.md`;
 	}
 
+	// A reserved device name is illegal on Windows whatever the extension, so check the
+	// stem after the extension is settled.
+	if (WINDOWS_RESERVED.test(out.slice(0, -3))) {
+		out = `riverbed-${out}`;
+	}
+
 	return out;
 }
 
 /** Leaves room for the `.md` extension and a `-NN` collision suffix inside 255 bytes. */
 const MAX_STEM_BYTES = 200;
 
-/** Truncate to at most `max` UTF-8 bytes without splitting a character. */
+/**
+ * Truncate to at most `max` UTF-8 bytes without splitting a character.
+ *
+ * Iterates CODE POINTS via `Array.from`, not `String.prototype.slice`. Slicing removes one
+ * UTF-16 code unit, which halves a surrogate pair: an emoji at the boundary left a lone
+ * high surrogate in the filename, written to disk as a replacement character.
+ */
 function capBytes(value: string, max: number): string {
 	const encoder = new TextEncoder();
 	if (encoder.encode(value).length <= max) return value;
-	let out = value;
-	// Drop whole code points from the end; slicing by byte could split a multi-byte
-	// character and produce a replacement char in the filename.
-	while (out.length > 0 && encoder.encode(out).length > max) {
-		out = out.slice(0, -1);
+	const points = Array.from(value);
+	let bytes = 0;
+	let kept = 0;
+	for (const point of points) {
+		const size = encoder.encode(point).length;
+		if (bytes + size > max) break;
+		bytes += size;
+		kept++;
 	}
-	return out;
+	return points.slice(0, kept).join('');
 }

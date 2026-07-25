@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, RiverbedSettings, clampInterval, isConfigured } from '../src/settings';
+import {
+	DEFAULT_SETTINGS,
+	MAX_INTERVAL_MINUTES,
+	RiverbedSettings,
+	clampInterval,
+	isConfigured,
+} from '../src/settings';
 import { normalizeBaseUrl } from '../src/url';
 
 const withSettings = (overrides: Partial<RiverbedSettings>): RiverbedSettings => ({
@@ -59,6 +65,19 @@ describe('clampInterval', () => {
 		// Infinity is non-finite too and takes the same fallback — correctly, since an
 		// infinite interval would mean the plugin never syncs again.
 		expect(clampInterval(Infinity, 5)).toBe(DEFAULT_SETTINGS.intervalMinutes);
+	});
+
+	it('caps an absurdly large interval below the setInterval overflow point', () => {
+		// setInterval's delay is a 32-bit int (2^31-1 ms, about 35,791 minutes). Past it the
+		// delay overflows and the timer fires CONTINUOUSLY rather than never, so a user who
+		// typed a huge number to mean "basically never" would hammer their own server.
+		expect(clampInterval(999_999, 5)).toBe(MAX_INTERVAL_MINUTES);
+		expect(clampInterval(MAX_INTERVAL_MINUTES + 1, 5)).toBe(MAX_INTERVAL_MINUTES);
+		expect(MAX_INTERVAL_MINUTES * 60_000).toBeLessThan(2 ** 31 - 1);
+	});
+
+	it('leaves a large-but-legal interval alone', () => {
+		expect(clampInterval(1440, 5)).toBe(1440);
 	});
 
 	it('clamps the fallback itself when the floor exceeds the default', () => {

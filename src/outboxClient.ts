@@ -78,8 +78,22 @@ export class HttpOutboxGateway implements OutboxGateway {
 
 	async getPending(): Promise<OutboxItem[]> {
 		const res = await requestUrl({ url: this.url('/app-outbox'), method: 'GET', headers: this.headers() });
-		const items = res.json?.items;
-		return Array.isArray(items) ? (items as OutboxItem[]) : [];
+		// `res.json` is a getter that PARSES on access, so a 200 carrying HTML (a captive
+		// portal, a proxy error page, the wrong host) throws a SyntaxError out of the whole
+		// pass. Treat unparseable as an explicit, readable failure instead.
+		let body: unknown;
+		try {
+			body = res.json;
+		} catch {
+			throw new Error('the server did not return JSON. Check the base URL points at a Riverbed instance.');
+		}
+		const items = (body as { items?: unknown } | null)?.items;
+		if (!Array.isArray(items)) return [];
+		// The server is not trusted for filenames (see sanitizeFilename), so it is not
+		// trusted for shape either. An entry missing an id or a string body cannot be
+		// written or acked meaningfully; dropping it leaves it pending for a later pass
+		// rather than throwing `null` at the vault.
+		return items.filter(isOutboxItem);
 	}
 
 	async ack(id: string): Promise<void> {
@@ -99,4 +113,16 @@ export class HttpOutboxGateway implements OutboxGateway {
 			body: JSON.stringify({ reason }),
 		});
 	}
+}
+
+/** Shape guard for an outbox entry: the three fields a delivery actually depends on. */
+function isOutboxItem(value: unknown): value is OutboxItem {
+	const item = value as Partial<OutboxItem> | null;
+	return (
+		!!item &&
+		typeof item.id === 'string' &&
+		item.id !== '' &&
+		typeof item.renderedMarkdown === 'string' &&
+		typeof item.suggestedFilename === 'string'
+	);
 }

@@ -52,5 +52,13 @@ export function clampInterval(loaded: number, floor: number): number {
 	if (!Number.isFinite(loaded)) {
 		return Math.max(DEFAULT_SETTINGS.intervalMinutes, floor);
 	}
-	return Math.max(loaded, floor);
+	return Math.min(Math.max(loaded, floor), MAX_INTERVAL_MINUTES);
 }
+
+/**
+ * Upper bound, in minutes, just under `setInterval`'s 32-bit millisecond delay limit
+ * (2^31-1 ms is about 35,791 minutes). Past that the delay overflows and the timer fires
+ * continuously instead of never, so an absurdly large interval hammers the user's server
+ * rather than idling as they intended.
+ */
+export const MAX_INTERVAL_MINUTES = 35_000;

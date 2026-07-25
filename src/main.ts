@@ -29,6 +29,8 @@ export default class RiverbedPlugin extends Plugin {
 	);
 	private intervalId: number | null = null;
 	private statusBar: HTMLElement | null = null;
+	/** Set in onunload so a callback queued before teardown cannot run against a dead plugin. */
+	private unloaded = false;
 
 	async onload() {
 		await this.loadSettings();
@@ -49,6 +51,10 @@ export default class RiverbedPlugin extends Plugin {
 		// load-time events, so a pass fired here races an index that is not finished being
 		// built. The recurring timer is armed immediately either way.
 		this.app.workspace.onLayoutReady(() => {
+			// onLayoutReady is not lifecycle-bound, so disabling the plugin in the window
+			// between onload and layout-ready would otherwise still fire a full sync (network,
+			// vault writes, acks) against a plugin that is already torn down.
+			if (this.unloaded) return;
 			void this.runSync('startup');
 		});
 		this.rescheduleSync();
@@ -57,6 +63,7 @@ export default class RiverbedPlugin extends Plugin {
 	}
 
 	onunload() {
+		this.unloaded = true;
 		this.clearInterval();
 		console.log('Riverbed: unloaded');
 	}
@@ -152,16 +159,20 @@ export default class RiverbedPlugin extends Plugin {
 			// read, not cachedRead: the byte comparison must see current disk contents.
 			read: async (path) => vault.adapter.read(normalizePath(path)),
 			create: async (path, contents) => {
+				const normalized = normalizePath(path);
 				// Fault injection for the AC 8 integration gate, dev builds only: a capture
 				// whose filename contains this sentinel fails to write, so the ack-only-on-
 				// write path and the reader's failed-with-Retry state can be exercised
 				// against a live server. Craft one via a custom capture template. esbuild
 				// substitutes IS_DEV to false in a production build, so this whole branch is
 				// dead code the bundler drops.
-				if (IS_DEV && path.includes('riverbed-fail-write')) {
+				if (IS_DEV && normalized.includes('riverbed-fail-write')) {
 					throw new Error('induced write failure (dev fault injection)');
 				}
-				await vault.create(path, contents);
+				// Normalized for the same reason exists/read are: normalizePath also applies NFC,
+				// so an unnormalized write would land at a different path than the one just
+				// checked for collisions on a filesystem that distinguishes the two.
+				await vault.create(normalized, contents);
 			},
 			createFolder: async (path) => {
 				const p = normalizePath(path);
