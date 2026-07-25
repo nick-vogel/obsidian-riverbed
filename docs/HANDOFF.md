@@ -67,20 +67,33 @@ pass.
 Phases 1 and 2 are DONE and review-clean. The Phase 3 plan is APPROVED (`status: approved`,
 commit `5265e1c`). Nothing needs re-reviewing. Work this list top to bottom.
 
-### 0. FIRST, and it is not in this repo: the capture-format change
+### The one blocker, and it only blocks Step 4
 
-**Asana `1216884314903927`** (merge the older duplicate `1216876861195652` into it; the newer
-carries the technical detail, the older carries the showcase-mismatch framing). This is
-**reader-side, in the `riverbed` repo**, not here.
+**Asana `1216884314903927`** — the capture-format change (merge the older duplicate
+`1216876861195652` into it; the newer carries the technical detail, the older the
+showcase-mismatch framing). This is **reader-side, in the `riverbed` repo**, not here.
 
 What it is: captures currently render as title / url / source-date / `why:` and nothing else.
 No YAML frontmatter, no article body. The plugin writes `renderedMarkdown` **verbatim** by
-spec (AC 6, verified byte-identical), so this cannot be fixed in the plugin.
+spec (AC 6, verified byte-identical), so it cannot be fixed in the plugin.
 
-Why it blocks the dogfood: **`renderedMarkdown` is generated and STORED at save time.** Every
-capture made while dogfooding keeps the content-less shape permanently and cannot be
-backfilled by changing the template afterward. Dogfooding first manufactures exactly the
-notes this change exists to eliminate, in the real vault.
+Why it blocks the dogfood specifically: **`renderedMarkdown` is generated and STORED at save
+time.** Every capture delivered into the REAL vault while the old template is live keeps the
+content-less shape permanently and cannot be backfilled. Dogfooding first manufactures exactly
+the notes this change exists to eliminate, in Knowsmore.
+
+**It does NOT block Steps 1-3.** Those close ACs 15, 16, 17 and 19, write only into throwaway
+test vaults, and are unaffected by the template's shape (Step 1 proves the TLS + Token path
+and byte-identity; Step 2 is repo/release mechanics on a binary the reader-side change does
+not touch; Step 3 is documentation). **Do Steps 1-3 now**, and leave Step 4 parked until the
+capture format lands. That way the only thing left afterward is the dogfood itself.
+
+**One trap while doing Steps 1-3:** a sync ACKS the entries it delivers, and an acked entry
+leaves the outbox for good. If you test against your real prod outbox, those saves land in a
+throwaway vault and will NOT arrive later when you dogfood into Knowsmore. **Make disposable
+saves in the reader for Steps 1-3**, and keep anything you actually want in your vault unsaved
+until Step 4. (This already happened once on dev: 8 real saves are sitting acked, delivered
+into `~/Desktop/riverbed-test-vault` rather than Knowsmore. See Asana `1216891949686167`.)
 
 ### 1. Phase 3 Step 1 — HTTPS end-to-end (AC 15)
 
@@ -108,7 +121,7 @@ Cover BRAT install (including the private-repo token step), manual install, mint
 configuring a self-hosted base URL, every setting, and the token-plaintext warning. Gate: a
 cold run in a clean vault, using only what the README says, reaches a syncing plugin.
 
-### 4. Phase 3 Step 4 — dogfood in the real vault (AC 18)
+### 4. Phase 3 Step 4 — dogfood in the real vault (AC 18) — PARKED until the capture format lands
 
 **PRODUCTION build only** (the BRAT release, or `pnpm build`). Never `pnpm dev` — that bundle
 carries the `riverbed-fail-write` fault-injection sentinel and a 1-minute floor. Confirm
