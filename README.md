@@ -21,6 +21,10 @@ drop straight into whatever inbox workflow you already run.
 The plugin is not in the Obsidian community store yet. Both install routes below are
 supported.
 
+**First, in a brand new vault:** open **Settings → Community plugins** and click **Turn on
+community plugins**. A fresh vault starts in Restricted Mode, where no third-party plugin
+will load by either route below.
+
 ### Option A: BRAT (recommended, gets updates automatically)
 
 [BRAT](https://github.com/TfTHacker/obsidian42-brat) installs and updates plugins straight
@@ -46,6 +50,8 @@ from a GitHub repository.
 
 1. Download `main.js` and `manifest.json` from the
    [latest release](https://github.com/nick-vogel/obsidian-riverbed/releases/latest).
+   The repository is private, so that page only opens if you are signed in to GitHub with
+   access to it. Without access, ask for the two files directly.
 2. Create the folder `.obsidian/plugins/riverbed/` inside your vault.
 3. Put both files in it. The folder must contain exactly `main.js` and `manifest.json`.
 4. Restart Obsidian (or use **Settings → Community plugins → Reload plugins**), then enable
@@ -77,13 +83,17 @@ Open **Settings → Community plugins → Riverbed**.
 | Notifications | Whether a delivering sync shows a notice. The status bar updates either way. |
 | Test connection | Checks the base URL and token, and reports success, an authentication failure, or an unreachable host. |
 
-Press **Test connection** after entering the base URL and token. It tells the three failure
-modes apart, so you know whether to fix the URL, the token, or your network:
+Press **Test connection** after entering the base URL and token. It tells the failure modes
+apart, so you know whether to fix the URL, the token, or your network:
 
 - **Connected.** The URL and token are both good.
-- **Authentication failed.** The URL is reachable but the token is wrong, revoked, or from
-  a different instance.
-- **Could not reach…** Nothing answered at that URL. Check the address and that the
+- **Authentication failed, check your token.** The URL is reachable but the token is wrong,
+  revoked, or issued by a different instance.
+- **Unexpected response (404, 502, …).** Something is answering at that URL but it is not a
+  Riverbed instance, or the path is wrong. This is the usual sign of a self-hosting
+  misconfiguration: check you entered the origin only, with no trailing path, and that your
+  reverse proxy routes `/app-outbox` through to the app.
+- **Could not reach…** Nothing answered at that URL at all. Check the address and that the
   instance is running.
 
 ### Self-hosting
@@ -108,8 +118,17 @@ deliberate: validating per keystroke makes the field impossible to edit normally
 - **Automatic:** a sync runs when Obsidian starts and then every interval. Nothing to do.
 - **Manual:** run **Riverbed: Sync now** from the command palette (`Cmd/Ctrl-P`).
 
-The status bar (bottom right) shows the last outcome and time: `Riverbed: synced 3`,
-`Riverbed: sync failed`, or `Riverbed: not configured`.
+The status bar (bottom right, a thin strip of small text) shows the last outcome with the
+time it happened:
+
+| Status | Meaning |
+| --- | --- |
+| `Riverbed: idle (2:14:07 PM)` | Loaded, nothing synced yet this session |
+| `Riverbed: not configured (…)` | The base URL or token is empty, so no sync is attempted |
+| `Riverbed: synced 3 (…)` | Three captures delivered |
+| `Riverbed: synced 0 (…)` | The sync ran and there was nothing pending |
+| `Riverbed: 2 synced, 1 failed (…)` | Partial: the failed one stays pending in Riverbed |
+| `Riverbed: sync failed (…)` | The whole pass failed, usually the network or the token |
 
 ### What lands in your vault
 

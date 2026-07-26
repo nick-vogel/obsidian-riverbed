@@ -1,6 +1,6 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type RiverbedPlugin from './main';
-import { DEFAULT_SETTINGS, clampInterval } from './settings';
+import { DEFAULT_SETTINGS, MAX_INTERVAL_MINUTES, clampInterval } from './settings';
 import { normalizeBaseUrl, testConnection } from './outboxClient';
 
 export class RiverbedSettingTab extends PluginSettingTab {
@@ -74,7 +74,9 @@ export class RiverbedSettingTab extends PluginSettingTab {
 						// (floor 5) is worse still, because the first digit of any value from
 						// 10 to 49 is itself sub-floor and would be rejected outright.
 						const parsed = Number(value);
-						if (!Number.isFinite(parsed) || parsed < floor) return;
+						if (!Number.isFinite(parsed) || parsed < floor || parsed > MAX_INTERVAL_MINUTES) {
+							return;
+						}
 						this.plugin.settings.intervalMinutes = parsed;
 						await this.plugin.saveSettings();
 						// Rearm the timer, or the change only takes effect on the next restart.
@@ -84,14 +86,20 @@ export class RiverbedSettingTab extends PluginSettingTab {
 				// Validate on COMMIT, not on input. Persistence is already safe (onChange
 				// above never stores a sub-floor value); this restores the displayed value
 				// once the user leaves the field and tells them why their entry did not take.
-				text.inputEl.addEventListener('blur', async () => {
+				// registerDomEvent, not addEventListener: Obsidian removes it on unload, so a
+				// blur after teardown cannot re-arm a timer against a dead plugin.
+				this.plugin.registerDomEvent(text.inputEl, 'blur', async () => {
 					const parsed = Number(text.inputEl.value);
-					if (Number.isFinite(parsed) && parsed >= floor) {
+					if (Number.isFinite(parsed) && parsed >= floor && parsed <= MAX_INTERVAL_MINUTES) {
 						text.setValue(String(parsed));
 						return;
 					}
+					// The cap is enforced here as well as in clampInterval, or the field would
+					// display a value the timer is not actually using until the next launch.
 					new Notice(
-						`Riverbed: the sync interval cannot be below ${floor} minute${floor === 1 ? '' : 's'}.`,
+						Number.isFinite(parsed) && parsed > MAX_INTERVAL_MINUTES
+							? `Riverbed: the sync interval cannot be above ${MAX_INTERVAL_MINUTES} minutes.`
+							: `Riverbed: the sync interval cannot be below ${floor} minute${floor === 1 ? '' : 's'}.`,
 					);
 					const kept = clampInterval(this.plugin.settings.intervalMinutes, floor);
 					this.plugin.settings.intervalMinutes = kept;

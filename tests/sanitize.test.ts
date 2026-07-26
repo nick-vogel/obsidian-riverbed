@@ -123,4 +123,44 @@ describe('sanitizeFilename — trailing dots and length', () => {
 	it('falls back when a name is nothing but dots and spaces', () => {
 		expect(sanitizeFilename('  ... ', 'abc')).toBe('riverbed-capture-abc.md');
 	});
+
+	it('sanitizes the FALLBACK ID too, which is equally server-controlled', () => {
+		// The hole this closes: the fallback interpolated the entry id raw, so an id of
+		// `../../../../Users/me/.zshrc` with an unusable filename produced a path that
+		// Obsidian's normalizePath leaves alone but the adapter's path.join resolves,
+		// writing OUTSIDE the vault. Every earlier fallback test used a benign id, which
+		// is why it survived two reviews.
+		const hostile = sanitizeFilename('...', '../../../../Users/me/.zshrc');
+		expect(hostile).not.toContain('/');
+		expect(hostile).not.toContain('\\');
+		expect(hostile).not.toContain('..');
+		expectSafe(hostile);
+
+		expect(sanitizeFilename('', '../../etc/passwd')).not.toContain('/');
+		expect(sanitizeFilename('***', 'a/b\\c:d')).not.toMatch(/[\\/:]/);
+	});
+
+	it('caps a very long fallback id, so an unusable name cannot strand the entry', () => {
+		const out = sanitizeFilename('...', 'a'.repeat(400));
+		expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(255);
+		expectSafe(out);
+	});
+
+	it('still produces a usable name when the id sanitizes away entirely', () => {
+		expect(sanitizeFilename('...', '///')).toBe('riverbed-capture-unknown.md');
+		expect(sanitizeFilename('...', '')).toBe('riverbed-capture-unknown.md');
+	});
+
+	it('catches a reserved device name before ANY dot, not just before .md', () => {
+		// Windows resolves the device from the first segment and ignores trailing spaces,
+		// so these all still hit the device despite not being bare `CON.md`.
+		expect(sanitizeFilename('CON.txt', 'id1')).toBe('riverbed-CON.txt.md');
+		expect(sanitizeFilename('nul.md.md', 'id1')).toBe('riverbed-nul.md.md');
+		expect(sanitizeFilename('CON .md', 'id1')).toBe('riverbed-CON .md');
+	});
+
+	it('leaves COM0 and LPT0 alone, which are not reserved', () => {
+		expect(sanitizeFilename('COM0', 'id1')).toBe('COM0.md');
+		expect(sanitizeFilename('LPT0', 'id1')).toBe('LPT0.md');
+	});
 });

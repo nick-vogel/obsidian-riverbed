@@ -1,5 +1,5 @@
 import { requestUrl } from 'obsidian';
-import { OutboxGateway, OutboxItem } from './sync/types';
+import { OutboxGateway, OutboxItem, isIdentifiable } from './sync/types';
 
 // Client for Riverbed's outbox API. Contract (ground truth): the riverbed repo's
 // docs/outbox-api.md. Auth is `Authorization: Token <token>` -- NOT Bearer, NOT JWT;
@@ -89,11 +89,18 @@ export class HttpOutboxGateway implements OutboxGateway {
 		}
 		const items = (body as { items?: unknown } | null)?.items;
 		if (!Array.isArray(items)) return [];
-		// The server is not trusted for filenames (see sanitizeFilename), so it is not
-		// trusted for shape either. An entry missing an id or a string body cannot be
-		// written or acked meaningfully; dropping it leaves it pending for a later pass
-		// rather than throwing `null` at the vault.
-		return items.filter(isOutboxItem);
+		// Drop ONLY what cannot be identified: without an id there is no way to ack it or
+		// report against it, so it can neither be delivered nor surfaced. Everything else
+		// passes through and is validated per-entry by the sync pass, which fails and
+		// REPORTS a malformed entry rather than dropping it silently. Silently discarding a
+		// malformed entry here would stall it forever with no user-visible trace.
+		const usable = items.filter(isIdentifiable);
+		if (usable.length !== items.length) {
+			console.log(
+				`Riverbed: ignored ${items.length - usable.length} outbox entr${items.length - usable.length === 1 ? 'y' : 'ies'} with no id`,
+			);
+		}
+		return usable as OutboxItem[];
 	}
 
 	async ack(id: string): Promise<void> {
@@ -113,16 +120,4 @@ export class HttpOutboxGateway implements OutboxGateway {
 			body: JSON.stringify({ reason }),
 		});
 	}
-}
-
-/** Shape guard for an outbox entry: the three fields a delivery actually depends on. */
-function isOutboxItem(value: unknown): value is OutboxItem {
-	const item = value as Partial<OutboxItem> | null;
-	return (
-		!!item &&
-		typeof item.id === 'string' &&
-		item.id !== '' &&
-		typeof item.renderedMarkdown === 'string' &&
-		typeof item.suggestedFilename === 'string'
-	);
 }

@@ -11,7 +11,7 @@ const FORBIDDEN = new RegExp('[*"\\\\/<>:|?\\u0000-\\u001f\\u007f]', 'g');
  * titled "Con" or "Aux" would fail to write on every pass and be stranded in the outbox
  * forever. Prefixing sidesteps it without mangling anything else.
  */
-const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 /**
  * Reduce a server-supplied name to a bare, safe, `.md` filename.
@@ -45,7 +45,7 @@ export function sanitizeFilename(name: string, fallbackId: string): string {
 
 	// Nothing meaningful survived (an empty, all-dots, or all-forbidden name).
 	if (out === '') {
-		return `riverbed-capture-${fallbackId}.md`;
+		return fallbackName(fallbackId);
 	}
 
 	// Cap the stem so a long feed title cannot exceed the filesystem's per-component limit
@@ -55,20 +55,44 @@ export function sanitizeFilename(name: string, fallbackId: string): string {
 	// to 4 bytes per character.
 	out = capBytes(out, MAX_STEM_BYTES).replace(/[.\s]+$/, '');
 	if (out === '') {
-		return `riverbed-capture-${fallbackId}.md`;
+		return fallbackName(fallbackId);
 	}
 
 	if (!out.toLowerCase().endsWith('.md')) {
 		out = `${out}.md`;
 	}
 
-	// A reserved device name is illegal on Windows whatever the extension, so check the
-	// stem after the extension is settled.
-	if (WINDOWS_RESERVED.test(out.slice(0, -3))) {
+	// Windows resolves a device name from the segment before the FIRST dot, and ignores
+	// trailing spaces on it: `CON.txt.md` and `CON .md` both still hit the device, so
+	// checking only the stem before `.md` would let them through.
+	if (WINDOWS_RESERVED.test(out.split('.')[0].trimEnd())) {
 		out = `riverbed-${out}`;
 	}
 
 	return out;
+}
+
+/**
+ * Name used when the server's `suggestedFilename` sanitizes away to nothing.
+ *
+ * The entry id is ALSO untrusted server input and gets the same treatment as the filename.
+ * Interpolating it raw was an arbitrary-write hole: an id of `../../../../Users/me/.zshrc`
+ * with an unusable filename produced `riverbed-capture-../../../../Users/me/.zshrc.md`, and
+ * while Obsidian's `normalizePath` does not resolve `..`, the adapter joins with the vault
+ * path and Node's `path.join` does, landing the write outside the vault entirely. An
+ * unbounded id was the same permanent-stranding bug as an unbounded filename.
+ */
+function fallbackName(fallbackId: string): string {
+	const safeId =
+		capBytes(
+			(fallbackId ?? '')
+				.replace(FORBIDDEN, '-')
+				// Dots go entirely: no `..` segment can survive, and none is wanted in an id.
+				.replace(/\./g, '-')
+				.replace(/^[.\-\s]+|[.\s]+$/g, ''),
+			64,
+		) || 'unknown';
+	return `riverbed-capture-${safeId}.md`;
 }
 
 /** Leaves room for the `.md` extension and a `-NN` collision suffix inside 255 bytes. */

@@ -1,6 +1,6 @@
 import { resolveTarget } from './resolve';
 import { sanitizeFilename } from './sanitize';
-import { SyncDeps, SyncResult } from './types';
+import { SyncDeps, SyncResult, isOutboxItem } from './types';
 
 function reasonOf(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
@@ -54,6 +54,12 @@ export class SyncRunner {
 			// Only the vault write is guarded here. An ack failure is deliberately NOT in
 			// this try: see below.
 			try {
+				// The entry reached here with a usable id but is not otherwise well formed.
+				// Fail it through the normal path so it is REPORTED and visible in the
+				// reader's Outbox, rather than dropped where nobody would ever see it.
+				if (!isOutboxItem(item)) {
+					throw new Error('malformed outbox entry: renderedMarkdown or suggestedFilename is not a string');
+				}
 				const filename = sanitizeFilename(item.suggestedFilename, item.id);
 				const target = await resolveTarget(
 					deps.vault,

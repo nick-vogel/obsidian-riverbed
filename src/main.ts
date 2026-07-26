@@ -50,11 +50,9 @@ export default class RiverbedPlugin extends Plugin {
 		// Startup pass behind onLayoutReady: during onload the vault is still emitting its
 		// load-time events, so a pass fired here races an index that is not finished being
 		// built. The recurring timer is armed immediately either way.
+		// onLayoutReady is not lifecycle-bound; runSync's own unloaded guard covers the case
+		// where the plugin is disabled between onload and layout-ready.
 		this.app.workspace.onLayoutReady(() => {
-			// onLayoutReady is not lifecycle-bound, so disabling the plugin in the window
-			// between onload and layout-ready would otherwise still fire a full sync (network,
-			// vault writes, acks) against a plugin that is already torn down.
-			if (this.unloaded) return;
 			void this.runSync('startup');
 		});
 		this.rescheduleSync();
@@ -75,6 +73,7 @@ export default class RiverbedPlugin extends Plugin {
 	 */
 	rescheduleSync() {
 		this.clearInterval();
+		if (this.unloaded) return;
 		const ms = clampInterval(this.settings.intervalMinutes, this.intervalFloor) * 60_000;
 		const id = window.setInterval(() => {
 			void this.runSync('scheduled');
@@ -96,6 +95,11 @@ export default class RiverbedPlugin extends Plugin {
 	 * that dies silently costs the user captures without ever telling them.
 	 */
 	async runSync(trigger: 'manual' | 'startup' | 'scheduled') {
+		// One guard covering every trigger (startup callback, interval tick, command), rather
+		// than only the onLayoutReady call site: a timer armed just before teardown, or a
+		// queued callback, must not sync against a plugin that is already unloaded.
+		if (this.unloaded) return;
+
 		// An unconfigured plugin must never touch the network. Without this, enabling the
 		// plugin fires a startup pass with an empty token against the default base URL, and
 		// the timer repeats it forever: a console error on every launch, and once the
