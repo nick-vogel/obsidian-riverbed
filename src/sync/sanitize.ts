@@ -33,7 +33,12 @@ const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
  * @param fallbackId the entry id, used to name a capture whose filename sanitizes away
  */
 export function sanitizeFilename(name: string, fallbackId: string): string {
-	let out = (name ?? '').trim();
+	// NFC FIRST, because the byte cap below must measure the bytes that actually reach the
+	// filesystem. `normalizePath` applies NFC on the way to the write, and NFC can GROW a
+	// string (U+0344 doubles; the musical symbols U+1D160-U+1D164 triple), so budgeting on
+	// the pre-NFC form let a 203-byte name land as 603 bytes, over the 255-byte component
+	// limit and back into the ENAMETOOLONG stranding this cap exists to prevent.
+	let out = (name ?? '').normalize('NFC').trim();
 
 	// Forbidden characters (path separators among them) become a dash, so a traversal
 	// attempt degrades into an ordinary flat name rather than escaping the folder.
@@ -96,6 +101,7 @@ function fallbackName(fallbackId: string): string {
 	const safeId =
 		capBytes(
 			(fallbackId ?? '')
+				.normalize('NFC')
 				.replace(FORBIDDEN, '-')
 				// Dots go entirely: no `..` segment can survive, and none is wanted in an id.
 				.replace(/\./g, '-')

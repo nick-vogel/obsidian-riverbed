@@ -179,3 +179,26 @@ describe('sanitizeFilename — trailing dots and length', () => {
 		expect(sanitizeFilename('LPT0', 'id1')).toBe('LPT0.md');
 	});
 });
+
+describe('sanitizeFilename — NFC before the byte budget', () => {
+	// normalizePath applies NFC on the way to the write, and NFC can GROW a string, so a
+	// budget measured on the pre-NFC form under-counts what actually hits the filesystem.
+	// Past 255 bytes the write throws ENAMETOOLONG on every pass and strands the entry,
+	// which is precisely what the cap was added to prevent.
+	const nfcBytes = (s: string) => new TextEncoder().encode(s.normalize('NFC')).length;
+
+	it('stays under the filesystem limit AFTER NFC, not just before it', () => {
+		// U+1D160 triples under NFC; U+0344 doubles.
+		expect(nfcBytes(sanitizeFilename('\u{1D160}'.repeat(80), 'id1'))).toBeLessThanOrEqual(255);
+		expect(nfcBytes(sanitizeFilename('̈́'.repeat(200), 'id1'))).toBeLessThanOrEqual(255);
+	});
+
+	it('applies the same guarantee to the fallback id path', () => {
+		expect(nfcBytes(sanitizeFilename('...', '̈́'.repeat(200)))).toBeLessThanOrEqual(255);
+	});
+
+	it('leaves ordinary names unaffected', () => {
+		expect(sanitizeFilename('a normal title', 'id1')).toBe('a normal title.md');
+		expect(nfcBytes(sanitizeFilename('日'.repeat(300), 'id1'))).toBeLessThanOrEqual(255);
+	});
+});
