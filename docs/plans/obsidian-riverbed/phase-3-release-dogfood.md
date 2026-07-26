@@ -268,6 +268,34 @@ verified absent from the installed bundle) is installed at
 `Knowsmore/.obsidian/plugins/riverbed/`; `.obsidian/plugins/` is gitignored there, so the
 token is not committable. Baseline: `inbox` held 5 files at install time.
 
+### 2026-07-26 — final review-code: CLEAN
+
+`/eng:review-code` on `874c72b..HEAD` (the test/bidi/doc commit) returned **CLEAN, 0
+blocking**, with the whole phase surface available for context. It fuzzed `sanitize.ts` over
+**~400,000 cases** across a hostile alphabet, resolving every result through a faithful
+`normalizePath` and then real `path.posix` AND `path.win32` joins against a vault root:
+**no case escaped**, on either platform. It ran six mutations to confirm every new assertion
+is load-bearing, and checked the three bidi sub-assertions individually, since the first
+failing `expect` aborts a test and would hide a vacuous second or third. That is the precise
+mechanism that let the earlier vacuous assertion survive.
+
+One advisory was fixed rather than logged (`a5cd8de`): the byte cap measured the PRE-NFC
+string while `normalizePath` applies NFC on the way to the write, and NFC can grow a string
+(U+0344 doubles, U+1D160-U+1D164 triple), so a 203-byte name could land as 603 bytes and
+strand the entry with ENAMETOOLONG. Normalizing first fixes it; mutation-verified. **66
+tests.**
+
+Remaining advisories carried to Asana `1216891285405648`: `deps.folder` is not sanitized, so
+a user typing `../../notes` writes outside the vault (user self-harm rather than a server
+capability, but the README claims containment absolutely, and fixing it needs a decision
+about whether nested destination folders stay supported), plus three cosmetic items.
+
+**AC 18 REMAINS UNPROVEN.** The review was explicitly told not to infer it from code and
+confirmed it cannot be closed by reading. The production build (0.1.1, sentinel verified
+absent) is installed and configured in Knowsmore, but no real capture has been delivered or
+sorted: as of 17:44 nothing had been written to `inbox` since install, and the outbox was
+empty. **The phase does not close until a real save lands and `/km:sort-inbox` files it.**
+
 ## Review log
 
 - 2026-07-24 — **6 blocking / 4 advisory** (independent Sonnet review-plan, just-in-time).
