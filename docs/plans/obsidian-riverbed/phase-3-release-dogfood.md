@@ -228,6 +228,36 @@ including a byte-diff of the downloaded asset against the local production build
 artifact with a known arbitrary-write hole), but deleting a published release is Nick's
 call, not something to do silently.
 
+### 2026-07-26 — AC 15 and AC 16 CLOSED against production
+
+Attended run with Nick, prod (`https://riverbedfeed.com`), plugin 0.1.1 installed via BRAT
+into a fresh vault at `~/Desktop/riverbed-test`, destination folder `inbox`.
+
+**AC 16 PASS.** BRAT installed 0.1.1 from the PRIVATE repo. Setup gotchas worth recording,
+both of which cost time: BRAT wants `owner/repo`, NOT a full URL (a URL gives "Repository
+not found"), and a fine-grained PAT with the repository *selected* but **no permissions
+added** fails the same way. It needs `Contents: Read-only` (Metadata is added automatically).
+Plugin loaded with zero console errors and completed a real sync.
+
+**AC 15 PASS**, byte-verified rather than eyeballed. `GET /app-outbox` snapshotted before
+the sync; after `Riverbed: Sync now` all **5** files were byte-identical to their
+`renderedMarkdown`, including a **16,459-byte** article. 5 files, zero extras, outbox drained
+to 0, and the vault root contained only `inbox` (nothing escaped). This is the first
+evidence the verbatim write holds at realistic size: every earlier gate ran on 176-252 byte
+dev captures.
+
+**THE AC 18 BLOCKER IS GONE.** The captures pulled in this run carry a header block
+(`title`, `url`, `source`, `published`, `extraction`, `why`) **and the full article body**.
+The capture-format change has shipped, so the dogfood is no longer parked.
+
+**Design decision, Nick, 2026-07-26 (do not re-litigate):** the header block is deliberately
+**plain text, not YAML frontmatter**. YAML formatting is too easy to break. The older
+duplicate task asked for frontmatter; plain-text headers are the intended end state. AC 18's
+gate should confirm `/km:sort-inbox` handles them, which is the real requirement either way.
+
+**Remaining: AC 17** (README cold run in a clean vault) and **AC 18** (dogfood into
+Knowsmore, now unblocked).
+
 ## Review log
 
 - 2026-07-24 — **6 blocking / 4 advisory** (independent Sonnet review-plan, just-in-time).
