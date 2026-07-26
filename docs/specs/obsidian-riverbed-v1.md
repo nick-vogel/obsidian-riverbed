@@ -229,7 +229,24 @@ Grouped by expected delivery phase; create-plan owns the final phase split. ACs 
 - ~~Public vs private GitHub repo at first release~~ **RESOLVED 2026-07-25: PRIVATE.**
   Nick's call. BRAT installs from a private repo with a personal access token, so AC 16
   still closes; a public flip later is cheap and is what a community-store listing would
-  need. Also settled: the plugin ships release-driven (publish a Release, the same mechanism the app deploys by), but on an INDEPENDENT release cycle and version line from the app. First release is `0.1.0`.
+  need. Also settled: the plugin ships release-driven (publish a Release, the same mechanism
+  the app deploys by), but on an INDEPENDENT release cycle and version line from the app.
+  First release is `0.1.0`. **The private call is deliberately TEMPORARY, see below.**
+
+- **Community-store GA is the eventual plan, timed to the app's readiness** (Nick,
+  2026-07-26). Not now, but it constrains what may be done in the meantime:
+  - **The store requires a PUBLIC repo.** Submission is a PR against
+    `obsidianmd/obsidian-releases` referencing the public repo and its releases, so the
+    private-repo decision must be reversed before GA. Nothing currently blocks that: the
+    code is secret-free (verified in review) and AC 19's release hygiene is already what a
+    store listing requires.
+  - **Plugin id `riverbed` is AVAILABLE** — checked against all 6,076 listed community
+    plugins on 2026-07-26, zero matches on id, name, or repo. No rename risk, and no reason
+    to change the id defensively. Re-check immediately before submitting, since the list
+    moves.
+  - Until then distribution stays manual + BRAT. Avoid anything awkward to undo in public:
+    bundled secrets, a vendored private dependency, or an id change after people have
+    installed under the current one.
 
 Resolved at spec review (2026-07-24):
 - **Default base URL** → ship `https://riverbedfeed.com` as the default (AC 3). Nick's
