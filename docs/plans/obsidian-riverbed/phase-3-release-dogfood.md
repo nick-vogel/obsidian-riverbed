@@ -255,8 +255,18 @@ The capture-format change has shipped, so the dogfood is no longer parked.
 duplicate task asked for frontmatter; plain-text headers are the intended end state. AC 18's
 gate should confirm `/km:sort-inbox` handles them, which is the real requirement either way.
 
-**Remaining: AC 17** (README cold run in a clean vault) and **AC 18** (dogfood into
-Knowsmore, now unblocked).
+**AC 17 PASS** (2026-07-26). Nick ran the README cold and reported it good, with no gaps
+worth fixing. The rewrite that preceded it had already closed the two traps he had just hit
+live: a fresh vault starting in Restricted Mode, and the BRAT private-repo PAT step.
+
+**Release 0.1.0 DELETED** (release and tag, 2026-07-26, Nick's call). It was cut before the
+path-traversal fix and nobody had installed it, so leaving a downloadable artifact with a
+known arbitrary-write hole served no purpose. 0.1.1 is the only release.
+
+**Remaining: AC 18** (dogfood into Knowsmore). The production build (0.1.1, fault sentinel
+verified absent from the installed bundle) is installed at
+`Knowsmore/.obsidian/plugins/riverbed/`; `.obsidian/plugins/` is gitignored there, so the
+token is not committable. Baseline: `inbox` held 5 files at install time.
 
 ## Review log
 
