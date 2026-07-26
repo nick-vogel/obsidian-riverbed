@@ -1,0 +1,31 @@
+{
+	"name": "obsidian-riverbed",
+	"version": "0.1.1",
+	"description": "Obsidian companion plugin for Riverbed: drains saved captures into your vault.",
+	"main": "main.js",
+	"scripts": {
+		"build": "node esbuild.config.mjs --production",
+		"dev": "node esbuild.config.mjs",
+		"test": "vitest run"
+	},
+	"keywords": [
+		"obsidian",
+		"obsidian-plugin",
+		"riverbed"
+	],
+	"author": "Nick Vogel",
+	"license": "MIT",
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild"
+		]
+	},
+	"devDependencies": {
+		"@types/node": "^22.10.2",
+		"builtin-modules": "^4.0.0",
+		"esbuild": "^0.24.2",
+		"obsidian": "^1.7.2",
+		"typescript": "^5.7.2",
+		"vitest": "^2.1.8"
+	}
+}

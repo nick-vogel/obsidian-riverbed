@@ -1,6 +1,7 @@
 ---
 title: Obsidian Riverbed companion plugin v1
 status: approved
+asana: 1216858370185470
 created: 2026-07-24
 updated: 2026-07-24
 ---
@@ -20,7 +21,7 @@ delivered entries, and reports failures back so they surface in the reader's Out
 view. Success is dogfood: a save made in the Riverbed reader appears in the Knowsmore
 vault's `inbox/` and rides the normal sort pass, with no manual step in between.
 
-Asana: `1216858370185470` (Riverbed — Obsidian companion plugin), project Personal.
+Asana: `1216858370185470` (Riverbed — Obsidian companion plugin), project Riverbed.
 
 ## User stories
 
@@ -218,16 +219,34 @@ Grouped by expected delivery phase; create-plan owns the final phase split. ACs 
   instance).
 - Eng pipeline: net-new project → one project branch (`project/obsidian-riverbed-v1`),
   per-phase commits reviewed as they land, ONE rollup PR to main at the end.
-- Asana project: Personal. Second brain:
+- Asana project: Riverbed. Second brain:
   `/Users/nick/Library/Mobile Documents/iCloud~md~obsidian/Documents/Knowsmore/personal/riverbed`
   (the plugin is part of the Riverbed product; its docs sync to the same hub). Write
   both lines into the new repo's CLAUDE.md at scaffold time.
 
 ## Open questions
 
-- **Public vs private GitHub repo at first release** — default public (see
-  Dependencies); Nick confirms at phase group C. (Non-blocking: does not affect any
-  phase A/B AC.)
+- ~~Public vs private GitHub repo at first release~~ **RESOLVED 2026-07-25: PRIVATE.**
+  Nick's call. BRAT installs from a private repo with a personal access token, so AC 16
+  still closes; a public flip later is cheap and is what a community-store listing would
+  need. Also settled: the plugin ships release-driven (publish a Release, the same mechanism
+  the app deploys by), but on an INDEPENDENT release cycle and version line from the app.
+  First release is `0.1.0`. **The private call is deliberately TEMPORARY, see below.**
+
+- **Community-store GA is the eventual plan, timed to the app's readiness** (Nick,
+  2026-07-26). Not now, but it constrains what may be done in the meantime:
+  - **The store requires a PUBLIC repo.** Submission is a PR against
+    `obsidianmd/obsidian-releases` referencing the public repo and its releases, so the
+    private-repo decision must be reversed before GA. Nothing currently blocks that: the
+    code is secret-free (verified in review) and AC 19's release hygiene is already what a
+    store listing requires.
+  - **Plugin id `riverbed` is AVAILABLE** — checked against all 6,076 listed community
+    plugins on 2026-07-26, zero matches on id, name, or repo. No rename risk, and no reason
+    to change the id defensively. Re-check immediately before submitting, since the list
+    moves.
+  - Until then distribution stays manual + BRAT. Avoid anything awkward to undo in public:
+    bundled secrets, a vendored private dependency, or an id change after people have
+    installed under the current one.
 
 Resolved at spec review (2026-07-24):
 - **Default base URL** → ship `https://riverbedfeed.com` as the default (AC 3). Nick's

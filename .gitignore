@@ -1,0 +1,11 @@
+
+# Unattended pipeline-loop logs
+.pipeline-loop-logs/
+
+# Dependencies
+node_modules/
+
+# Build output (attached to GitHub releases, not committed)
+main.js
+*.js.map
+
