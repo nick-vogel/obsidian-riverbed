@@ -79,7 +79,7 @@ tokens) before you start.
    $T" > pre.json` with entries pending, run `Riverbed: Sync now`, `diff` each written file
    against its entry's `renderedMarkdown` from `pre.json` (all byte-identical), then
    re-`curl` and confirm those entries are gone from pending.
-2. **AC 16 — BRAT install (Step 2, second half).** In a FRESH vault: install BRAT, give it a
+2. **AC 16 — BRAT install (Step 2, second half).** BRAT installs the LATEST release, which is 0.1.1; do not hand-install 0.1.0. In a FRESH vault: install BRAT, give it a
    **GitHub personal access token with read access to the private repo** (fine-grained,
    Contents: Read-only, scoped to `nick-vogel/obsidian-riverbed`), then "Add beta plugin"
    with `nick-vogel/obsidian-riverbed`. It must install, enable with zero console errors,

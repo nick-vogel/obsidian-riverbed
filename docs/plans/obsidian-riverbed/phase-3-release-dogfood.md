@@ -196,6 +196,38 @@ Prod verified reachable (`https://riverbedfeed.com` -> 200).
 
 **Tree state at this point:** 41 tests green, `tsc --noEmit` clean, production build clean.
 
+### 2026-07-25 (later) — review-code on the batch: 1 blocking, fixed, re-review CLEAN
+
+`/eng:review-code` on `978757b..HEAD` returned **1 BLOCKING**: `sanitizeFilename`
+sanitized `name` but interpolated the server-controlled entry `id` RAW into its fallback
+(`riverbed-capture-${fallbackId}.md`), bypassing the forbidden-character pass, the dot
+collapse and the byte cap. An id of `../../../../Users/me/.zshrc` with an unusable
+`suggestedFilename` produced a path that Obsidian's `normalizePath` leaves intact (it does
+not resolve `..`) but the adapter's `path.join` with the vault base DOES, writing outside
+the vault. It survived two prior reviews because every fallback test used a benign id.
+Fixed in `874c72b`; re-review **CLEAN**, which fuzzed ~21,000 cases with posix and win32
+path-join escape assertions and mutation-tested 8 reverts.
+
+Also fixed from the same two passes: the Windows device-name check missed `CON.txt.md` /
+`CON .md` (Windows resolves the device from the segment before the FIRST dot); malformed
+outbox entries were dropped silently instead of reported; the shape guard sat in the one
+module vitest cannot load; the unloaded guard was too narrow; the interval cap was not
+enforced in the settings control; and four README accuracy gaps including Restricted Mode,
+which would have blocked the AC 17 cold run outright.
+
+`9729f10` then closed the re-review's own advisories: the malformed-entry guard had NO test
+(removing it left all 57 green, the same shape as the two defects already shipped here), the
+`registerDomEvent` change leaked a handler per settings-tab open, and bidi override
+characters survived sanitization. **63 tests**, all mutation-verified as load-bearing.
+
+**RELEASE 0.1.0 IS SUPERSEDED.** It was cut before the traversal fix, so its `main.js`
+carries the defect. Rolling forward to **0.1.1** rather than moving a published tag, per the
+release policy; `versions.json` accumulates both. AC 19's gates re-run and pass on 0.1.1,
+including a byte-diff of the downloaded asset against the local production build.
+**0.1.0 should probably be deleted** (nobody has installed it, and it is a downloadable
+artifact with a known arbitrary-write hole), but deleting a published release is Nick's
+call, not something to do silently.
+
 ## Review log
 
 - 2026-07-24 — **6 blocking / 4 advisory** (independent Sonnet review-plan, just-in-time).
