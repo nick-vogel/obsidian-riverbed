@@ -146,3 +146,65 @@ describe('runSync — single-flight lock', () => {
 		expect(vault.files.size).toBe(0);
 	});
 });
+
+describe('runSync — malformed entries', () => {
+	// The behavior these pin: an entry that arrives with a usable id but a broken payload
+	// must be FAILED and REPORTED (so it surfaces in the reader's Outbox with a Retry),
+	// never acked, and never silently dropped. Before these existed, deleting the guard
+	// in runSync left the whole suite green.
+	const malformed = (id: string, overrides: Record<string, unknown>) =>
+		({ id, suggestedFilename: 'x.md', renderedMarkdown: 'body\n', ...overrides }) as never;
+
+	it('reports a malformed entry instead of writing or acking it', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([malformed('1', { renderedMarkdown: null })]);
+
+		const result = await new SyncRunner().run(deps(vault, outbox));
+
+		expect(result).toEqual({ delivered: 0, failed: 1 });
+		expect(vault.files.size).toBe(0);
+		expect(outbox.acked).toEqual([]);
+		expect(outbox.reported.map((e: { id: string }) => e.id)).toEqual(['1']);
+	});
+
+	it('does not let one malformed entry abort the rest of the pass', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([
+			item('1', 'a.md', 'first\n'),
+			malformed('2', { renderedMarkdown: null }),
+			malformed('3', { suggestedFilename: 42 }),
+			item('4', 'd.md', 'fourth\n'),
+		]);
+
+		const result = await new SyncRunner().run(deps(vault, outbox));
+
+		expect(result).toEqual({ delivered: 2, failed: 2 });
+		expect(vault.files.get('inbox/a.md')).toBe('first\n');
+		expect(vault.files.get('inbox/d.md')).toBe('fourth\n');
+		expect(vault.files.size).toBe(2);
+		expect(outbox.acked).toEqual(['1', '4']);
+		expect(outbox.reported.map((e: { id: string }) => e.id).sort()).toEqual(['2', '3']);
+	});
+
+	it('treats an entry that is only an id as malformed, not as an empty capture', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([{ id: '9' } as never]);
+
+		const result = await new SyncRunner().run(deps(vault, outbox));
+
+		expect(result).toEqual({ delivered: 0, failed: 1 });
+		expect(outbox.acked).toEqual([]);
+		expect(outbox.reported.map((e: { id: string }) => e.id)).toEqual(['9']);
+	});
+
+	it('still delivers a legitimately EMPTY capture, which is not malformed', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'empty.md', '')]);
+
+		const result = await new SyncRunner().run(deps(vault, outbox));
+
+		expect(result).toEqual({ delivered: 1, failed: 0 });
+		expect(vault.files.get('inbox/empty.md')).toBe('');
+		expect(outbox.acked).toEqual(['1']);
+	});
+});

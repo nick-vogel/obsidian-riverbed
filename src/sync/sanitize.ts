@@ -2,8 +2,18 @@
 // contract promises a plain filename with no path separators, but a buggy or hostile
 // server must not be able to write outside the destination folder.
 
-/** Characters Obsidian forbids in a filename, plus control characters and DEL. */
-const FORBIDDEN = new RegExp('[*"\\\\/<>:|?\\u0000-\\u001f\\u007f]', 'g');
+/**
+ * Characters Obsidian forbids in a filename, plus control characters and DEL.
+ *
+ * Also strips C1 controls (U+0080-U+009F) and the bidi overrides/isolates
+ * (U+202A-U+202E, U+2066-U+2069). Those are invisible and reorder how the rest of the name
+ * RENDERS, so a hostile server could make a capture display as a different filename than
+ * the one written to disk.
+ */
+const FORBIDDEN = new RegExp(
+	'[*"\\\\/<>:|?\\u0000-\\u001f\\u007f\\u0080-\\u009f\\u202a-\\u202e\\u2066-\\u2069]',
+	'g',
+);
 
 /**
  * Windows reserved device names. These are not legal filenames on Windows with ANY

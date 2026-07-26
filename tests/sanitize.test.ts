@@ -159,6 +159,21 @@ describe('sanitizeFilename — trailing dots and length', () => {
 		expect(sanitizeFilename('CON .md', 'id1')).toBe('riverbed-CON .md');
 	});
 
+	it('strips bidi overrides, which spoof how a filename renders', () => {
+		// U+202E reverses display order, so a server could make a capture LOOK like a
+		// different filename than the one on disk. Invisible, so nothing else catches it.
+		const out = sanitizeFilename('report\u202Egnp.md', 'id1');
+		expect(out).not.toContain('\u202E');
+		expectSafe(out);
+		const viaId = sanitizeFilename('...', '\u202Eevil');
+		expect(viaId).not.toContain('\u202E');
+		expect(sanitizeFilename('a\u2066b\u2069c', 'id1')).not.toMatch(/[\u2066-\u2069]/);
+	});
+
+	it('strips C1 control characters', () => {
+		expect(sanitizeFilename('a\u0085b', 'id1')).toBe('a-b.md');
+	});
+
 	it('leaves COM0 and LPT0 alone, which are not reserved', () => {
 		expect(sanitizeFilename('COM0', 'id1')).toBe('COM0.md');
 		expect(sanitizeFilename('LPT0', 'id1')).toBe('LPT0.md');

@@ -58,10 +58,11 @@ export class RiverbedSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Sync interval')
-			.setDesc(`Minutes between automatic syncs. Minimum ${floor} in this build.`)
+			.setDesc(`Minutes between automatic syncs. Minimum ${floor} in this build, maximum ${MAX_INTERVAL_MINUTES}.`)
 			.addText((text) => {
 				text.inputEl.type = 'number';
 				text.inputEl.min = String(floor);
+				text.inputEl.max = String(MAX_INTERVAL_MINUTES);
 				text
 					.setPlaceholder(String(DEFAULT_SETTINGS.intervalMinutes))
 					.setValue(String(this.plugin.settings.intervalMinutes))
@@ -86,9 +87,12 @@ export class RiverbedSettingTab extends PluginSettingTab {
 				// Validate on COMMIT, not on input. Persistence is already safe (onChange
 				// above never stores a sub-floor value); this restores the displayed value
 				// once the user leaves the field and tells them why their entry did not take.
-				// registerDomEvent, not addEventListener: Obsidian removes it on unload, so a
-				// blur after teardown cannot re-arm a timer against a dead plugin.
-				this.plugin.registerDomEvent(text.inputEl, 'blur', async () => {
+				// Plain addEventListener, deliberately: SettingTab is not a Component, so
+				// registerDomEvent would bind to the PLUGIN's lifetime, and display() runs on
+				// every settings-tab open after emptying containerEl, leaking one handler per
+				// open against a detached input. The post-unload concern it would address is
+				// already covered by rescheduleSync's own unloaded guard.
+				text.inputEl.addEventListener('blur', async () => {
 					const parsed = Number(text.inputEl.value);
 					if (Number.isFinite(parsed) && parsed >= floor && parsed <= MAX_INTERVAL_MINUTES) {
 						text.setValue(String(parsed));

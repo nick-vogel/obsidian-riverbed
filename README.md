@@ -79,9 +79,9 @@ Open **Settings → Community plugins → Riverbed**.
 | Base URL | The Riverbed instance to sync from. Defaults to `https://riverbedfeed.com`. Change it if you self-host. |
 | API token | Your outbox token, from the step above. |
 | Destination folder | Vault folder captures are written to, relative to the vault root. Created if missing. Defaults to `inbox`. |
-| Sync interval | Minutes between automatic syncs. Minimum 5. |
+| Sync interval | Minutes between automatic syncs. Minimum 5, maximum 35,000. |
 | Notifications | Whether a delivering sync shows a notice. The status bar updates either way. |
-| Test connection | Checks the base URL and token, and reports success, an authentication failure, or an unreachable host. |
+| Test connection | Checks the base URL and token. Reports success, an authentication failure, an unexpected response, or an unreachable host. |
 
 Press **Test connection** after entering the base URL and token. It tells the failure modes
 apart, so you know whether to fix the URL, the token, or your network:
@@ -109,9 +109,14 @@ speaks only to the URL you configure and contacts nothing else.
 
 ### A note on the interval field
 
-The interval is validated when you **leave the field**, not as you type. Entering a value
-below the minimum reverts it and shows a notice once you click away or press Tab. This is
-deliberate: validating per keystroke makes the field impossible to edit normally.
+The interval is validated when you **leave the field**, not as you type. A value below the
+minimum, or above the maximum of 35,000 minutes, reverts and shows a notice once you click
+away or press Tab. This is deliberate: validating per keystroke makes the field impossible
+to edit normally.
+
+The maximum exists because the browser timer this uses takes a 32-bit millisecond delay.
+Past roughly 35,791 minutes it overflows and the timer fires continuously rather than never,
+so a very large number would sync constantly instead of rarely.
 
 ## Use it
 
@@ -159,6 +164,8 @@ capture stays pending in Riverbed rather than disappearing. Common causes:
 - **Not configured.** The base URL or token is empty.
 - **Authentication failed.** The token was revoked or belongs to another instance. Create a
   new one and paste it in.
+- **Unexpected response.** Something answered but it is not a Riverbed instance, or a proxy
+  is not routing `/app-outbox` through. Usually a self-hosting misconfiguration.
 - **Could not reach…** The instance is down or unreachable from this machine.
 
 Failed captures appear in Riverbed's **Outbox** view with a **Retry** control.
