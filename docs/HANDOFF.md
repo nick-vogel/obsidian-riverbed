@@ -92,13 +92,31 @@ tokens) before you start.
 leaves the outbox permanently, so anything you actually want in Knowsmore must stay unsaved
 until AC 18. This already cost 8 real dev saves (Asana `1216891949686167`).
 
-### B. Then, once the capture format lands
+### B. The capture format HAS landed (2026-07-26) — this is no longer parked
 
-4. **AC 18 — dogfood (Step 4).** PARKED until Asana `1216884314903927` ships, because
-   `renderedMarkdown` is frozen at save time (detail below). Then: install the PRODUCTION
-   build into Knowsmore, confirm `grep -c riverbed-fail-write main.js` returns `0`, folder
-   `inbox`, real token, make a save, and **run `/km:sort-inbox`** to prove the capture files
-   exactly like any other.
+4. **AC 18 — dogfood (Step 4). UNBLOCKED.** Asana `1216884314903927` shipped: the reader is
+   on **v1.1.0** in production and a capture now carries a header block plus the full article
+   as markdown. Verified live on riverbedfeed.com. Do this: install the PRODUCTION build into
+   Knowsmore, confirm `grep -c riverbed-fail-write main.js` returns `0`, folder `inbox`, real
+   token, make a save, and **run `/km:sort-inbox`** to prove the capture files exactly like
+   any other.
+
+   **What a capture looks like now**, so the assertion is against the real shape:
+
+   ```
+   title: <title>
+   url: <url>
+   source: <feed title>
+   published: <YYYY-MM-DD>
+   extraction: ok | empty | none | failed
+   why: <what you typed>
+
+   <the full article, converted to markdown>
+   ```
+
+   Header lines are plain `key: value`, deliberately NOT YAML frontmatter (a title containing
+   a colon would make it invalid YAML and Obsidian would fail to parse the note). The plugin
+   still writes `renderedMarkdown` verbatim and needed no changes for any of this.
 
 ### C. Close out
 
@@ -107,17 +125,29 @@ parent `1216858370185470`. **Then the rollup PR:** `main` does NOT exist yet (th
 default branch is currently `project/obsidian-riverbed-v1`), so creating `main` and opening
 the single rollup PR into it is close-out work, per the never-commit-to-main rule.
 
-## The capture-format blocker, and what it does NOT block
+## The capture-format blocker — CLEARED 2026-07-26
 
-**Asana `1216884314903927`** (merge the older duplicate `1216876861195652` into it). This is
-**reader-side, in the `riverbed` repo**. Captures render as title / url / source-date /
-`why:` and nothing else: no frontmatter, no article body. The plugin writes
-`renderedMarkdown` verbatim by spec, so it cannot be fixed here.
+Asana `1216884314903927` is complete and the reader shipped it as **v1.1.0**. Kept here
+because the REASON it blocked has also changed, and a future session reading only the old
+text would draw the wrong conclusion.
 
-It blocks **only AC 18**, because `renderedMarkdown` is generated and **STORED at save
-time**: any capture delivered into the real vault under the old template keeps the
-content-less shape permanently and cannot be backfilled. ACs 15, 16, 17 and 19 write only
-into throwaway vaults and are unaffected.
+**What it was:** captures rendered as title / url / source-date / `why:` and nothing else,
+and `renderedMarkdown` was generated and **STORED at save time**, so any capture delivered
+into the real vault kept the content-less shape permanently and could not be backfilled.
+That is what made dogfooding destructive rather than merely early.
+
+**What changed:** the capture BODY now renders at outbox **READ** time, from the live item
+and the user's current template. A pending (un-acked) entry therefore picks up the current
+format on the next poll, and this was explicitly designed to be the last capture-format
+change that ever has to be sequenced against anything. `suggestedFilename` stays save-time
+and frozen, so a client polling either side of an edit cannot write one capture to two files.
+
+**What still holds, and is the thing to be careful about:** read-time rendering fixes
+*pending* entries, not delivered ones. **The outbox is single-consumer** — one `ackedAt` per
+save, and an acked entry is never re-delivered. A sync ACKS what it writes, so a capture
+drained into a throwaway test vault will NEVER reach Knowsmore, and the empty poll that
+follows looks exactly like a broken configuration. Two clients on one token race for every
+entry. So the "use disposable saves until AC 18" rule above still stands unchanged.
 
 ## Release policy (Nick, 2026-07-25)
 
