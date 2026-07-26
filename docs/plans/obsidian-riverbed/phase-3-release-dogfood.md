@@ -1,6 +1,6 @@
 ---
 title: Obsidian Riverbed plugin — Phase 3: release + dogfood
-status: approved
+status: complete
 spec: ../../specs/obsidian-riverbed-v1.md
 phase: 3
 asana: 1216860986917917
@@ -290,11 +290,17 @@ a user typing `../../notes` writes outside the vault (user self-harm rather than
 capability, but the README claims containment absolutely, and fixing it needs a decision
 about whether nested destination folders stay supported), plus three cosmetic items.
 
-**AC 18 REMAINS UNPROVEN.** The review was explicitly told not to infer it from code and
+**AC 18 CLOSED 2026-07-26 22:07.** A real save delivered
+`inbox/2026-07-26_22-07-38-capture.md` into the live Knowsmore vault: header block plus
+4,194 bytes of article body, outbox drained to 0, and `/km:sort-inbox` handled it. Verified
+independently against the filesystem and the API rather than taken on report. **All five ACs
+now closed; the phase is DONE.**
+
+Superseded note, kept for the record: at review time this read The review was explicitly told not to infer it from code and
 confirmed it cannot be closed by reading. The production build (0.1.1, sentinel verified
 absent) is installed and configured in Knowsmore, but no real capture has been delivered or
 sorted: as of 17:44 nothing had been written to `inbox` since install, and the outbox was
-empty. **The phase does not close until a real save lands and `/km:sort-inbox` files it.**
+empty. and the phase correctly did not close on the clean review alone.
 
 ## Review log
 
@@ -325,3 +331,6 @@ empty. **The phase does not close until a real save lands and `/km:sort-inbox` f
   `gh release view --json` fields. The three advisories (a duplicated Review log header, a
   stale future-tense framing sentence, an uncited claim about BRAT's tag resolution) are
   fixed in this same pass. Status → approved.
+- 2026-07-26 — **CLEAN, 0 blocking**, all five ACs (15-19) proven with recorded evidence.
+  Asana subtask `1216860986917917` and the parent `1216858370185470` both closed. Phase
+  DONE. Remaining project-level step: create `main` and open the single rollup PR.
