@@ -12,9 +12,24 @@ export interface OutboxItem {
 
 /** Everything the sync pass needs from a vault, and nothing more. */
 export interface SyncVault {
+	/** True for a file OR a folder at `path`. It cannot distinguish the two. */
 	exists(path: string): Promise<boolean>;
 	read(path: string): Promise<string>;
 	create(path: string, contents: string): Promise<void>;
+	/**
+	 * Create a folder at `path`.
+	 *
+	 * IDEMPOTENT: a folder already there is success, not an error. But a FILE already there
+	 * must THROW, and that distinction is the whole contract. `exists` says only "something
+	 * is here", so a caller that guards with `exists` can never learn that the something is
+	 * a note rather than a directory. Pushing the check in here is what lets the caller
+	 * report a real reason instead of a downstream write failure with a misleading one.
+	 *
+	 * The fake must match this contract. It cannot match the real adapter in every respect
+	 * (it is case-SENSITIVE, where APFS and NTFS are not), but where it does model something
+	 * it must not be more permissive: a fake looser than the real adapter is how this plugin
+	 * shipped its case-sensitivity defect.
+	 */
 	createFolder(path: string): Promise<void>;
 }
 

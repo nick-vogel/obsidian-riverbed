@@ -78,15 +78,16 @@ Open **Settings → Community plugins → Riverbed**.
 | --- | --- |
 | Base URL | The Riverbed instance to sync from. Defaults to `https://riverbedfeed.com`. Change it if you self-host. |
 | API token | Your outbox token, from the step above. |
-| Destination folder | Vault folder captures are written to, relative to the vault root. Created if missing. Defaults to `inbox`. |
-| Sync interval | Minutes between automatic syncs. Minimum 5, maximum 35,000. |
+| Destination folder | Vault folder captures are written to, relative to the vault root. Created if missing. Nest it with `/`, for example `research/inbox`. Leave it empty to write to the vault root. Defaults to `inbox`. |
+| Sync interval | Minutes between automatic syncs. Minimum 5, maximum 35000. Defaults to 15. |
 | Notifications | Whether a delivering sync shows a notice. The status bar updates either way. |
 | Test connection | Checks the base URL and token. Reports success, an authentication failure, an unexpected response, or an unreachable host. |
 
 Press **Test connection** after entering the base URL and token. It tells the failure modes
 apart, so you know whether to fix the URL, the token, or your network:
 
-- **Connected.** The URL and token are both good.
+- **Connected.** The URL and token are both good. When the instance also reports what is
+  waiting, the notice names it: **Connected. 3 captures pending.**
 - **Authentication failed, check your token.** The URL is reachable but the token is wrong,
   revoked, or issued by a different instance.
 - **Unexpected response (404, 502, …).** Something is answering at that URL but it is not a
@@ -110,13 +111,34 @@ speaks only to the URL you configure and contacts nothing else.
 ### A note on the interval field
 
 The interval is validated when you **leave the field**, not as you type. A value below the
-minimum, or above the maximum of 35,000 minutes, reverts and shows a notice once you click
+minimum, or above the maximum of 35000 minutes, reverts and shows a notice once you click
 away or press Tab. This is deliberate: validating per keystroke makes the field impossible
-to edit normally.
+to edit normally. The default is 15 minutes.
 
 The maximum exists because the browser timer this uses takes a 32-bit millisecond delay.
 Past roughly 35,791 minutes it overflows and the timer fires continuously rather than never,
 so a very large number would sync constantly instead of rarely.
+
+### A note on the destination folder
+
+The folder is checked when you **leave the field**, for the same reason. `/` nests, so
+`research/inbox` is a valid destination and every level is created for you.
+
+A folder that would point outside your vault is corrected rather than accepted, and the
+notice tells you what was used instead. `../../notes` becomes `notes`; an absolute path like
+`/Users/me/notes` becomes `Users/me/notes`. Characters your filesystem forbids become `-`,
+one segment at a time, so the separators between segments survive.
+
+Three more corrections fire the same notice, so they are worth knowing about up front:
+
+- **A leading dot is stripped from every level.** `.archive` becomes `archive`, and
+  `.obsidian/plugins` becomes `obsidian/plugins`. A folder starting with a dot is hidden
+  from Obsidian, so captures written there would be invisible in your own vault.
+- **Trailing dots and spaces are stripped.** Windows removes them from a folder name
+  silently, so keeping them would mean the folder on disk differs from the one shown here.
+- **Windows device names get a `riverbed-` prefix.** `CON` becomes `riverbed-CON`. Those
+  names cannot be folders on Windows at all, and the plugin runs on mobile too, so a vault
+  that syncs across platforms would otherwise fail every write into that folder.
 
 ## Use it
 
@@ -149,9 +171,11 @@ controlled entirely by your template in Riverbed.
   and so on.
 - **If the existing file is byte-identical**, nothing is written and the capture is marked
   delivered. This is what makes an interrupted sync safe to repeat.
-- **It never writes outside your destination folder.** Filenames from the server are
-  sanitized: path separators and `..` segments are stripped, and characters your filesystem
-  forbids become `-`.
+- **It never writes outside your vault.** Filenames from the server are sanitized: path
+  separators and `..` segments are stripped, and characters your filesystem forbids become
+  `-`. The destination folder you type gets the same treatment, minus the separators, which
+  it keeps so nesting works: a `..` segment, an absolute path, and a drive letter are all
+  removed before anything is created or written.
 - **A capture is only marked delivered after the file is confirmed written.** If a write
   fails, the capture stays in your Riverbed outbox, is reported there with the reason, and
   is retried on the next sync. Nothing is silently lost.

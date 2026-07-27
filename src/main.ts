@@ -6,6 +6,7 @@ import {
 	RiverbedSettings,
 	clampInterval,
 	isConfigured,
+	normalizeSettings,
 } from './settings';
 import { RiverbedSettingTab } from './settingsTab';
 import { HttpOutboxGateway } from './outboxClient';
@@ -191,12 +192,9 @@ export default class RiverbedPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		const merged: RiverbedSettings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-		// Clamp on load, not only in the settings control: an interval persisted under a
-		// dev build's floor of 1 must not keep running sub-floor once the same data.json
-		// is opened by a production build.
-		merged.intervalMinutes = clampInterval(Number(merged.intervalMinutes), this.intervalFloor);
-		this.settings = merged;
+		// Every normalization lives in normalizeSettings, which is obsidian-free and so
+		// actually testable; this module is not loadable by vitest at all.
+		this.settings = normalizeSettings(await this.loadData(), this.intervalFloor);
 	}
 
 	async saveSettings() {

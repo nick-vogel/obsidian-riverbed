@@ -1,5 +1,5 @@
 ---
-status: complete
+status: ready
 ---
 
 # Handoff — Obsidian Riverbed companion plugin
@@ -25,38 +25,89 @@ outbox-destinations build order** (`riverbed` repo `docs/outbox-destinations.md`
   `Knowsmore/.obsidian/plugins/riverbed/`, pointed at `https://riverbedfeed.com`, folder
   `inbox`. It delivered a real capture on 2026-07-26 at 22:07 and `/km:sort-inbox` filed it.
 - **Asana:** parent `1216858370185470` and all three phase subtasks CLOSED.
-- **Tests:** 66, typecheck and production build clean, fault-injection sentinel verified
+- **Tests:** 115, typecheck and production build clean, fault-injection sentinel verified
   absent from the shipped artifact.
 
-There is no next pipeline step. What follows is standalone follow-up work.
+There is no next pipeline step for the PROJECT. One follow-up branch is in flight, below.
 
-## Open item 1 — destination folder is not sanitized (Asana `1216891285405648`)
+## Open item 1 — destination folder sanitizing (Asana `1216891285405648`) — DONE, awaiting merge
 
-The only known correctness gap. **Not** a server-controlled hole, so it is user self-harm
-rather than an attack surface, but `README.md` states flatly "It never writes outside your
-destination folder" and that is currently false for a user-typed traversal.
+Branch `fix/destination-folder-traversal`, off `main`. **Not yet merged.**
 
-`deps.folder` is only trimmed of leading and trailing slashes (`runSync.ts`, and
-`joinPath` in `resolve.ts`). It is never checked for `..`. A user who types `../../notes`
-into the Destination folder setting writes outside the vault: Obsidian's `normalizePath`
-does not resolve `..`, but the adapter's `path.join` does.
+Closed the traversal gap: `deps.folder` was only trimmed of slashes and never checked for
+`..`, so a user typing `../../notes` wrote outside the vault (`normalizePath` does not
+resolve `..`, but the adapter's `path.join` does). All three cosmetic items on the task are
+done too.
 
-**Nick's decision, 2026-07-26: nested destination folders ARE supported**, so the fix must
-NOT reuse `sanitizeFilename`'s rules (which flatten every separator). Shape:
+What it added, beyond the obvious:
 
-- KEEP `/` as a nesting separator, so `research/inbox` still works.
-- STRIP `..` segments. That is the actual hole.
-- REJECT an absolute path (leading `/`) and a Windows drive prefix.
-- Normalize repeated separators, trim leading/trailing ones.
-- Sanitize per SEGMENT: each segment gets the forbidden-character treatment, separators
-  between segments survive.
-- Validate in the settings control too, so the user finds out immediately rather than on
-  the next sync.
+- **`sanitizeFolder`** keeps `/` as a nesting separator (nested destinations are supported,
+  Nick's call 2026-07-26), strips `..`, rejects an absolute path and a drive prefix, and
+  sanitizes per SEGMENT. `\` counts as a separator because `normalizePath` folds it to `/`.
+- **One authoritative call site**, `SyncRunner.pass`. It is defense in depth: every upstream
+  writer of `settings.folder` already sanitizes, so it should never change anything, and it
+  LOGS if it ever does, because that would mean a path upstream skipped its sanitize.
+- **`normalizeSettings`** (new, in `src/settings.ts`) took over the whole `loadSettings`
+  merge. main.ts imports `obsidian` and therefore cannot be loaded by vitest, so that logic
+  had been unreachable by any test since launch, including the interval clamp.
+- **`ensureFolder` walks each level** and no longer pre-checks with `exists()`, because
+  `exists()` is true for a FILE too and so skipped a level with a note in the way.
+  `SyncVault.createFolder` is now specified as idempotent-but-throwing-on-a-non-folder, and
+  `tests/fakes.ts` was corrected to match the real adapter.
+- **`folderNotice`** is a pure function so the notice wording is testable at all.
 
-Post-merge, so it needs its own branch and PR. Also carried on that task: three cosmetic
-items (README says `35,000` where the settings description renders `35000`; the README
-omits the default interval of 15 and the pending-count variant of the "Connected" notice;
-`settingsTab.ts` async listeners have no rejection handler).
+## The review history on this branch is the point
+
+**Four independent review rounds, and rounds 3 and 4 each found defects introduced by the
+PREVIOUS round's fix.** Approval was NOT clean. Reviewing stopped deliberately, per Nick's
+rule about diminishing returns, and the evidence shifted to mutation testing plus fuzz.
+
+The two that matter most, because both were self-inflicted:
+
+1. Widening the forbidden character class to the hand-listed range `\u200b-\u200f` swept in
+   **U+200C ZWNJ and U+200D ZWJ, which are orthographic**. It replaced them with `-`, so a
+   Persian title `می‌روم` became `می-روم`. The file's own comment two lines above already
+   stated the principle (U+2800 excluded as "a legitimate character rather than a formatting
+   artifact") and the change violated it in the same commit.
+2. The same enumeration covered only about half the format characters, so `​/etc` was
+   reported as leaving the vault while `­/etc` (soft hyphen) was accepted silently and
+   created a folder rendering blank. **The test used three characters all inside the range
+   that was implemented, so it could never have failed.**
+
+Both are fixed by defining the class BY PROPERTY (`\p{Cc}\p{Cf}` plus the Hangul blank
+fillers, joiners excluded by lookahead) rather than by enumeration, with `FORBIDDEN` and
+`INVISIBLE` built from one shared class so they cannot drift. Note the deliberate asymmetry:
+**joiners are preserved in OUTPUT but invisible to COMPARISON** (`visible()`), because
+`‌/etc` still reads as `/etc` to the person who typed it.
+
+Then, because keeping the joiners opens its own hole, `RENDERS_BLANK` rejects a name made
+only of joiners and whitespace. Its first version tested only bare joiners and ran BEFORE the
+trailing-dot trim, so `.‌.` still became a folder named `‌`. **A guard on "what is left" has
+to be the last thing that runs.**
+
+### Evidence
+
+- **115 tests**, typecheck and production build clean, sentinel absent from `main.js`.
+- **Mutation sweep: 51 caught, 2 survived, 156 invalid.** Exhaustive line-deletion over
+  `sanitize.ts`, `settings.ts`, `runSync.ts`, each mutant gated on `tsc --noEmit` so a syntax
+  error cannot masquerade as a catch. The 2 survivors are a redundant `continue` and a
+  `capBytes` fast path, both documented in place.
+- **Fuzz, 9,702 structured inputs** over separators, dots, drive letters, joiners, zero-width
+  and blank-rendering characters, astral tags and combining marks: **0 escapes** under
+  `path.posix.resolve` and `path.win32.resolve`, **0 non-idempotent** results, **0
+  blank-rendering** names.
+- **Code-point enumeration over all 1.1M code points**: `FORBIDDEN` matches 246. ZWNJ, ZWJ,
+  U+2800, U+FE0F, combining marks and Latin/Arabic/Devanagari/CJK/emoji samples all
+  unmatched; every spoofing character matched.
+
+**Two lessons about the METHOD, not the code, worth carrying forward:**
+
+- A hand-picked mutant set measures your judgement, not the code. The `notifications`
+  coercion was never in the picked set, and a reviewer found the survivor. The sweep is now
+  exhaustive over lines.
+- The first sweep filtered to `;`-terminated lines, which silently skipped every CHAINED
+  CONTINUATION line (`.normalize('NFC')`, `.replace(/\./g, '-')`). A real untested guarantee
+  was hiding on exactly such a line. **The filter was the blind spot, not the tests.**
 
 ## Open item 2 — public flip before community-store GA
 
@@ -111,7 +162,7 @@ present) does not evidence the production one.
 ## Dev stack
 
 `pnpm install`, `pnpm build` (production, interval floor 5), `pnpm dev` (watch, floor 1 plus
-the `riverbed-fail-write` fault injection), `pnpm test` (vitest, 66). Install by copying
+the `riverbed-fail-write` fault injection), `pnpm test` (vitest, 115). Install by copying
 `main.js` + `manifest.json` into `<vault>/.obsidian/plugins/riverbed/`. The reader is live at
 `https://riverbedfeed.com`; mint outbox tokens there under Settings, API tokens.
 
@@ -119,3 +170,10 @@ the `riverbed-fail-write` fault injection), `pnpm test` (vitest, 66). Install by
 
 **None standing.** The original autonomous authorization was discharged at Phase 2 and the
 project has since shipped. Any further work needs explicit authorization.
+
+## Next action
+
+Merge `fix/destination-folder-traversal` (PR to `main`), then close Asana
+`1216891285405648`. The installed production build in `Knowsmore/.obsidian/plugins/riverbed/`
+is still `0.1.1` and does NOT carry this fix; rebuild and copy `main.js` + `manifest.json`
+after merging, or cut a `0.1.2` release.
