@@ -1,5 +1,5 @@
 ---
-status: ready
+status: complete
 ---
 
 # Handoff — Obsidian Riverbed companion plugin
@@ -20,10 +20,12 @@ outbox-destinations build order** (`riverbed` repo `docs/outbox-destinations.md`
   "Execution log").
 - **Rollup PR #1 MERGED** 2026-07-26, merge commit `9cadd9c`, `--merge` not squash so the
   per-phase reviewed history survives. `main` is the default branch.
-- **Release `0.1.1`** is the only release, assets `main.js` + `manifest.json`.
-- **Running in production**: the production build is installed at
-  `Knowsmore/.obsidian/plugins/riverbed/`, pointed at `https://riverbedfeed.com`, folder
-  `inbox`. It delivered a real capture on 2026-07-26 at 22:07 and `/km:sort-inbox` filed it.
+- **Release `0.2.0`** is current (assets `main.js` + `manifest.json`); `0.1.0` and `0.1.1`
+  precede it. Tags are bare semver, `versions.json` accumulates, never move a published tag.
+- **Running in production**: `0.2.0` is installed at `Knowsmore/.obsidian/plugins/riverbed/`,
+  pointed at `https://riverbedfeed.com`, folder `inbox`, interval 10. Settings survived the
+  upgrade. **Obsidian must reload the plugin to pick up a new `main.js`.** It delivered a real
+  capture on 2026-07-26 at 22:07 and `/km:sort-inbox` filed it.
 - **Asana:** parent `1216858370185470` and all three phase subtasks CLOSED.
 - **Tests:** 146, typecheck and production build clean, fault-injection sentinel verified
   absent from the shipped artifact.
@@ -109,12 +111,9 @@ to be the last thing that runs.**
   CONTINUATION line (`.normalize('NFC')`, `.replace(/\./g, '-')`). A real untested guarantee
   was hiding on exactly such a line. **The filter was the blind spot, not the tests.**
 
-## Follow-up batch 2 — ribbon icon and sync feedback — DONE, in PR #3
+## Shipped in 0.2.0 — ribbon icon and sync feedback (Asana `1216863724808780`, `1216863923333571`, both CLOSED)
 
-**PR #3, open, NOT merged, and STACKED on PR #2:** https://github.com/nick-vogel/obsidian-riverbed/pull/3
-Branch `feat/ribbon-and-sync-feedback`. Both branches touch `main.ts`, so **merge #2 first,
-then retarget #3 to `main`.** Asana `1216863724808780` and `1216863923333571`, both left OPEN
-until it merges.
+**MERGED** 2026-07-26 as merge commit `75e20ad` (PR #3).
 
 Two scope additions from the 2026-07-24 manual gate walkthrough, which both tasks said to
 land together in one batch gated by review-code.
@@ -214,15 +213,17 @@ project has since shipped. Any further work needs explicit authorization.
 
 ## Next action
 
-1. Merge **PR #2** (`fix/destination-folder-traversal`) into `main`, close Asana
-   `1216891285405648`.
-2. Retarget **PR #3** (`feat/ribbon-and-sync-feedback`) to `main` and merge it, close Asana
-   `1216863724808780` and `1216863923333571`.
-3. **Rebuild and reinstall.** The production build in `Knowsmore/.obsidian/plugins/riverbed/`
-   is still `0.1.1` and carries NEITHER change. `pnpm build`, then copy `main.js` +
-   `manifest.json`, or cut a `0.1.2` release (tags are bare semver, `versions.json`
-   accumulates, never move a published tag).
+Nothing is in flight. **Release `0.2.0` is cut and installed**, and all three follow-up Asana
+tasks are closed.
 
-Blocked on Nick, not on code: Asana `1216891949686167` (gate-test residue) needs two
-decisions, namely whether to un-ack his 8 real saves in Mongo so they redeliver to the real
-vault, and whether to delete `~/Desktop/riverbed-test-vault`.
+Two items remain, neither blocked on code:
+
+1. **Asana `1216891949686167` (gate-test residue)** needs two decisions from Nick: whether to
+   un-ack his 8 real saves in Mongo so they redeliver to the real vault, and whether to delete
+   `~/Desktop/riverbed-test-vault` (~67 files plus a dev build).
+2. **Open item 2 below**, the public flip before community-store GA, timed to the app's
+   readiness.
+
+Also unresolved and worth a decision: **`main` on this repo is NOT branch-protected**, which
+is out of step with the standing default applied to the other active repos on 2026-07-25.
+Both merges above went in unprotected.
