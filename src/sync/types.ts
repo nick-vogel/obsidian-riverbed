@@ -6,7 +6,7 @@
 export interface OutboxItem {
 	id: string;
 	renderedMarkdown: string;
-	suggestedFilename: string;
+	suggestedFilename?: string;
 	createdAt?: string;
 }
 
@@ -94,13 +94,25 @@ export interface SyncResult {
  */
 export function isOutboxItem(value: unknown): value is OutboxItem {
 	const item = value as Partial<OutboxItem> | null;
-	return (
-		!!item &&
-		typeof item.id === 'string' &&
-		item.id !== '' &&
-		typeof item.renderedMarkdown === 'string' &&
-		typeof item.suggestedFilename === 'string'
-	);
+	return !!item && typeof item.id === 'string' && item.id !== '' && typeof item.renderedMarkdown === 'string';
+}
+
+/**
+ * The name to write an entry under, tolerating a server that sent none.
+ *
+ * `suggestedFilename` used to be part of `isOutboxItem`, which made a missing one FATAL:
+ * the entry was rejected as malformed on every poll, forever, and no amount of fixing the
+ * article could help because the article was never the problem. That is unnecessary —
+ * `sanitizeFilename` already falls back to a name derived from the entry id, and it takes
+ * that id precisely so a blank name is recoverable. Only `renderedMarkdown` is genuinely
+ * fatal, because there is nothing to write without it.
+ *
+ * This is not hypothetical: the server writes `suggestedFilename` only on the save path
+ * (`app-save.ts`), the column has no default, and `GET /app-outbox` serves it straight
+ * through — so a save created by any other route arrives here with none.
+ */
+export function filenameOf(item: OutboxItem): string {
+	return typeof item.suggestedFilename === 'string' ? item.suggestedFilename : '';
 }
 
 /**

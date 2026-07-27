@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isIdentifiable, isOutboxItem } from '../src/sync/types';
+import { filenameOf, isIdentifiable, isOutboxItem } from '../src/sync/types';
 
 const good = { id: 'abc', renderedMarkdown: '# hi', suggestedFilename: 'x.md' };
 
@@ -11,7 +11,26 @@ describe('isOutboxItem', () => {
 	it('rejects a non-string body, which would otherwise reach vault.create', () => {
 		expect(isOutboxItem({ ...good, renderedMarkdown: null })).toBe(false);
 		expect(isOutboxItem({ ...good, renderedMarkdown: 42 })).toBe(false);
-		expect(isOutboxItem({ ...good, suggestedFilename: undefined })).toBe(false);
+	});
+
+	// NARROWED 2026-07-27. This used to also reject a missing `suggestedFilename`, which
+	// made a recoverable field fatal: the entry was rejected as malformed on EVERY poll,
+	// forever, with no way for the user to fix it — the article was never the problem.
+	// `sanitizeFilename` already derives a name from the entry id, and takes that id for
+	// exactly this case. The assertion is replaced rather than deleted because the thing it
+	// protected (a body that is not a string must never reach `vault.create`) is still real
+	// and is pinned above.
+	it('accepts an entry with no filename, because that is recoverable', () => {
+		expect(isOutboxItem({ ...good, suggestedFilename: undefined })).toBe(true);
+		expect(isOutboxItem({ ...good, suggestedFilename: null })).toBe(true);
+		expect(isOutboxItem({ ...good, suggestedFilename: 42 })).toBe(true);
+	});
+
+	it('normalises any unusable filename to an empty string for the id fallback', () => {
+		expect(filenameOf({ ...good, suggestedFilename: undefined } as never)).toBe('');
+		expect(filenameOf({ ...good, suggestedFilename: null } as never)).toBe('');
+		expect(filenameOf({ ...good, suggestedFilename: 42 } as never)).toBe('');
+		expect(filenameOf({ ...good, suggestedFilename: 'kept.md' } as never)).toBe('kept.md');
 	});
 
 	it('rejects a missing or empty id', () => {
