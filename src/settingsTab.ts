@@ -162,7 +162,10 @@ export class RiverbedSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Notifications')
-			.setDesc('Show a notice when a sync delivers new captures.')
+			.setDesc(
+				'Show a notice when a sync delivers new captures. Syncs you trigger yourself also ' +
+					'report when there was nothing to do, or why they failed.',
+			)
 			.addToggle((toggle) =>
 				toggle.setValue(this.plugin.settings.notifications).onChange((value) => {
 					this.plugin.settings.notifications = value;

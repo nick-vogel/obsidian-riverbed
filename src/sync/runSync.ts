@@ -34,6 +34,11 @@ export class SyncRunner {
 			deps.log?.('Riverbed: sync already in progress, skipping this pass');
 			return Promise.resolve(null);
 		}
+		// Inside the guard, so it announces a pass that is genuinely starting. The caller
+		// cannot make this decision correctly on its own: checking "am I busy" before calling
+		// is a check the runner already does, and duplicating it is how a skipped pass ended
+		// up overwriting the running one's progress.
+		deps.onPassStart?.();
 		const pass = this.pass(deps).finally(() => {
 			this.inFlight = null;
 		});
@@ -43,7 +48,10 @@ export class SyncRunner {
 
 	private async pass(deps: SyncDeps): Promise<SyncResult> {
 		const items = await deps.outbox.getPending();
-		if (items.length === 0) return { delivered: 0, failed: 0 };
+		// Report the total before doing any work, so the status bar can switch off the
+		// previous pass's outcome the moment there is something real to say.
+		deps.onProgress?.(0, items.length);
+		if (items.length === 0) return { delivered: 0, failed: 0, pending: 0 };
 
 		// Defense in depth, covering both the folder creation below and every write in the
 		// loop. In the shipped plugin this should never actually change anything: every
@@ -94,6 +102,9 @@ export class SyncRunner {
 				} catch (reportFailure) {
 					deps.log?.(`Riverbed: could not report a failed write: ${reasonOf(reportFailure)}`);
 				}
+				// A failure is still an entry SETTLED, so it advances the count. Progress that
+				// stalls on the first bad entry would read as a hung sync.
+				deps.onProgress?.(delivered + failed, items.length);
 				continue;
 			}
 
@@ -107,9 +118,10 @@ export class SyncRunner {
 			} catch (e) {
 				deps.log?.(`Riverbed: write succeeded but ack failed, will re-ack next pass: ${reasonOf(e)}`);
 			}
+			deps.onProgress?.(delivered + failed, items.length);
 		}
 
-		return { delivered, failed };
+		return { delivered, failed, pending: items.length };
 	}
 
 	/**

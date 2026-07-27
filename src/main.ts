@@ -1,4 +1,4 @@
-import { Notice, Plugin, normalizePath } from 'obsidian';
+import { Notice, Plugin, addIcon, normalizePath } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
 	DEV_INTERVAL_FLOOR,
@@ -11,6 +11,8 @@ import {
 import { RiverbedSettingTab } from './settingsTab';
 import { HttpOutboxGateway } from './outboxClient';
 import { SyncRunner } from './sync/runSync';
+import { RIBBON_ICON, RIBBON_SVG } from './ribbon';
+import { SyncState, SyncTrigger, stateForResult, statusText, syncNotice } from './status';
 import { SyncVault } from './sync/types';
 
 export default class RiverbedPlugin extends Plugin {
@@ -38,7 +40,7 @@ export default class RiverbedPlugin extends Plugin {
 		this.addSettingTab(new RiverbedSettingTab(this.app, this));
 
 		this.statusBar = this.addStatusBarItem();
-		this.setStatus('Riverbed: idle');
+		this.setStatus({ kind: 'idle' });
 
 		this.addCommand({
 			id: 'sync-now',
@@ -46,6 +48,13 @@ export default class RiverbedPlugin extends Plugin {
 			callback: () => {
 				void this.runSync('manual');
 			},
+		});
+
+		// Same action as the command, reachable without knowing it exists. The palette is
+		// only discoverable to someone already looking for it.
+		addIcon(RIBBON_ICON, RIBBON_SVG);
+		this.addRibbonIcon(RIBBON_ICON, 'Riverbed: Sync now', () => {
+			void this.runSync('manual');
 		});
 
 		// Startup pass behind onLayoutReady: during onload the vault is still emitting its
@@ -95,7 +104,7 @@ export default class RiverbedPlugin extends Plugin {
 	 * One sync pass. Never throws: a failure becomes a visible status, because a plugin
 	 * that dies silently costs the user captures without ever telling them.
 	 */
-	async runSync(trigger: 'manual' | 'startup' | 'scheduled') {
+	async runSync(trigger: SyncTrigger) {
 		// One guard covering every trigger (startup callback, interval tick, command), rather
 		// than only the onLayoutReady call site: a timer armed just before teardown, or a
 		// queued callback, must not sync against a plugin that is already unloaded.
@@ -106,10 +115,7 @@ export default class RiverbedPlugin extends Plugin {
 		// the timer repeats it forever: a console error on every launch, and once the
 		// default host is live, a request from every install that was never set up.
 		if (!isConfigured(this.settings)) {
-			this.setStatus('Riverbed: not configured');
-			if (trigger === 'manual' && this.settings.notifications) {
-				new Notice('Riverbed: set your server URL and API token in settings first.');
-			}
+			this.report({ kind: 'not-configured' }, trigger);
 			return;
 		}
 
@@ -119,30 +125,38 @@ export default class RiverbedPlugin extends Plugin {
 				outbox: this.outbox,
 				folder: this.settings.folder,
 				log: (message) => console.log(message),
+				// Announced by the RUNNER, from inside its single-flight guard, so this only
+				// fires for a pass that genuinely started. Setting it here instead let a
+				// skipped pass overwrite a running one's `syncing 9 of 10` with a bare
+				// `syncing...`, losing the count in the stall case the count exists for.
+				onPassStart: () => this.setStatus({ kind: 'syncing' }),
+				onProgress: (done, total) => this.setStatus({ kind: 'syncing', done, total }),
 			});
-			if (result === null) return; // a pass was already running
+			// A pass was already running and owns the status bar, untouched above. Nothing to
+			// report here: the running pass reports for itself.
+			if (result === null) return;
 
-			if (result.failed > 0) {
-				this.setStatus(`Riverbed: ${result.delivered} synced, ${result.failed} failed`);
-			} else {
-				this.setStatus(`Riverbed: synced ${result.delivered}`);
-			}
-			if (result.delivered > 0 && this.settings.notifications) {
-				new Notice(`Riverbed: synced ${result.delivered} capture${result.delivered === 1 ? '' : 's'}.`);
-			}
+			this.report(stateForResult(result), trigger);
 		} catch (e) {
 			const reason = e instanceof Error ? e.message : String(e);
-			this.setStatus('Riverbed: sync failed');
 			console.log(`Riverbed: sync (${trigger}) failed: ${reason}`);
-			if (this.settings.notifications && trigger === 'manual') {
-				new Notice(`Riverbed: sync failed. ${reason}`);
-			}
+			this.report({ kind: 'failed', reason }, trigger);
 		}
 	}
 
-	private setStatus(text: string) {
+	/**
+	 * Update the status bar, and interrupt with a Notice only when the state and trigger
+	 * warrant one. Both decisions live in `status.ts`, which is testable; this is the wiring.
+	 */
+	private report(state: SyncState, trigger: SyncTrigger) {
+		this.setStatus(state);
+		const notice = syncNotice(state, trigger, this.settings.notifications);
+		if (notice !== null) new Notice(notice);
+	}
+
+	private setStatus(state: SyncState) {
 		const stamp = new Date().toLocaleTimeString();
-		this.statusBar?.setText(`${text} (${stamp})`);
+		this.statusBar?.setText(`${statusText(state)} (${stamp})`);
 	}
 
 	/**

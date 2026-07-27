@@ -14,7 +14,8 @@ drop straight into whatever inbox workflow you already run.
 1. Install the plugin (below).
 2. Create an API token in Riverbed.
 3. Paste the token into the plugin's settings and press **Test connection**.
-4. Run **Riverbed: Sync now** from the command palette.
+4. Click the Riverbed wave icon in the left ribbon, or run **Riverbed: Sync now** from
+   the command palette.
 
 ## Install
 
@@ -80,7 +81,7 @@ Open **Settings → Community plugins → Riverbed**.
 | API token | Your outbox token, from the step above. |
 | Destination folder | Vault folder captures are written to, relative to the vault root. Created if missing. Nest it with `/`, for example `research/inbox`. Leave it empty to write to the vault root. Defaults to `inbox`. |
 | Sync interval | Minutes between automatic syncs. Minimum 5, maximum 35000. Defaults to 15. |
-| Notifications | Whether a delivering sync shows a notice. The status bar updates either way. |
+| Notifications | Whether syncs show notices. Deliveries always do; the quieter outcomes only when you triggered the sync yourself. The status bar updates either way. |
 | Test connection | Checks the base URL and token. Reports success, an authentication failure, an unexpected response, or an unreachable host. |
 
 Press **Test connection** after entering the base URL and token. It tells the failure modes
@@ -143,19 +144,40 @@ Three more corrections fire the same notice, so they are worth knowing about up 
 ## Use it
 
 - **Automatic:** a sync runs when Obsidian starts and then every interval. Nothing to do.
-- **Manual:** run **Riverbed: Sync now** from the command palette (`Cmd/Ctrl-P`).
+- **Manual:** click the **Riverbed wave icon** in the left ribbon, or run **Riverbed: Sync
+  now** from the command palette (`Cmd/Ctrl-P`). Both do the same thing.
 
-The status bar (bottom right, a thin strip of small text) shows the last outcome with the
-time it happened:
+The status bar (bottom right, a thin strip of small text) shows what the plugin is doing,
+with the time it last changed:
 
 | Status | Meaning |
 | --- | --- |
 | `Riverbed: idle (2:14:07 PM)` | Loaded, nothing synced yet this session |
 | `Riverbed: not configured (…)` | The base URL or token is empty, so no sync is attempted |
+| `Riverbed: syncing... (…)` | A pass is running, with no count yet (the server has not answered, or there was nothing pending) |
+| `Riverbed: syncing 2 of 4 (…)` | A pass is running, two of four captures settled so far |
+| `Riverbed: nothing to sync (…)` | The pass ran and the outbox was empty |
 | `Riverbed: synced 3 (…)` | Three captures delivered |
-| `Riverbed: synced 0 (…)` | The sync ran and there was nothing pending |
 | `Riverbed: 2 synced, 1 failed (…)` | Partial: the failed one stays pending in Riverbed |
 | `Riverbed: sync failed (…)` | The whole pass failed, usually the network or the token |
+
+A pass that is merely slow is meant to be distinguishable from one that is stuck, which is
+why the bar changes the moment a sync starts rather than when it finishes.
+
+### When it interrupts you
+
+Notices are deliberately quieter than the status bar, which always updates. With
+**Notifications** on:
+
+- **Captures arrived** gets a notice however the sync was triggered. That is the thing you
+  installed this for. A partial pass says so: *synced 2 captures, 1 failed.*
+- **Everything else** gets a notice only when you asked for the sync yourself: nothing to
+  sync, not configured, a pass that threw, and a pass where every capture failed to write.
+  An automatic pass announcing "nothing to sync" every interval is how notifications end up
+  turned off.
+
+Whatever the trigger, the status bar always shows the outcome, so an automatic pass that is
+failing is visible there even though it stays quiet.
 
 ### What lands in your vault
 
