@@ -25,7 +25,7 @@ outbox-destinations build order** (`riverbed` repo `docs/outbox-destinations.md`
   `Knowsmore/.obsidian/plugins/riverbed/`, pointed at `https://riverbedfeed.com`, folder
   `inbox`. It delivered a real capture on 2026-07-26 at 22:07 and `/km:sort-inbox` filed it.
 - **Asana:** parent `1216858370185470` and all three phase subtasks CLOSED.
-- **Tests:** 115, typecheck and production build clean, fault-injection sentinel verified
+- **Tests:** 146, typecheck and production build clean, fault-injection sentinel verified
   absent from the shipped artifact.
 
 There is no next pipeline step for the PROJECT. One follow-up branch is in flight, below.
@@ -109,6 +109,47 @@ to be the last thing that runs.**
   CONTINUATION line (`.normalize('NFC')`, `.replace(/\./g, '-')`). A real untested guarantee
   was hiding on exactly such a line. **The filter was the blind spot, not the tests.**
 
+## Follow-up batch 2 — ribbon icon and sync feedback — DONE, in PR #3
+
+**PR #3, open, NOT merged, and STACKED on PR #2:** https://github.com/nick-vogel/obsidian-riverbed/pull/3
+Branch `feat/ribbon-and-sync-feedback`. Both branches touch `main.ts`, so **merge #2 first,
+then retarget #3 to `main`.** Asana `1216863724808780` and `1216863923333571`, both left OPEN
+until it merges.
+
+Two scope additions from the 2026-07-24 manual gate walkthrough, which both tasks said to
+land together in one batch gated by review-code.
+
+- **Ribbon icon** firing the same manual sync as the palette command. Glyph is the Riverbed
+  wave mark, STROKED not filled, so it inherits `currentColor` and follows the theme.
+- **Status bar shows a pass in flight** (`syncing...`, then `syncing 2 of 4`) and reports
+  `nothing to sync` on an empty pass, with a notice when the user asked for it.
+
+Three things a fresh session should not have to rediscover:
+
+1. **A `T` command in an SVG path REFLECTS the previous control point.** Each wave therefore
+   swings 5 units past its baseline, and the round cap adds half the stroke. Rescaling the
+   brand mark proportionally put the bottom wave at y=105 in a 100-unit box, where the SVG's
+   own overflow clip sliced it flat. Geometry now lives in `src/ribbon.ts` with `waveSpan()`
+   and a test asserting every wave fits, because "does a drawing fit its box" is arithmetic
+   even though the drawing itself is not testable.
+2. **The pass-start signal is emitted by the RUNNER, inside its single-flight guard**, not by
+   the caller. Deciding it in `main.ts` let a skipped concurrent pass overwrite the running
+   pass's `syncing 9 of 10` with a bare `syncing...`. Do not "simplify" this back into the
+   caller with a `busy` check; emitting under the guard removes the race rather than testing
+   for it.
+3. **`main.ts` is the one module vitest cannot load** (it imports `obsidian`, which ships
+   types with no runtime entry). Every DECISION has been moved out of it into `status.ts`,
+   `ribbon.ts` and the runner; what is left is wiring. When something there needs testing,
+   the answer is to move the decision out, not to accept the gap.
+
+Evidence: 146 tests, typecheck and production build clean, sentinel absent. 33 line-deletion
+mutants over `status.ts`/`ribbon.ts`/`runSync.ts`/`types.ts` with 1 survivor (an unused
+optional field documenting the wire shape), plus 23 targeted value mutations across the
+trigger policy, glyph geometry and pass-start guard, all caught.
+
+**Still needs a human:** the glyph's weight and balance at 18px next to Obsidian's own icons.
+Geometry is asserted; how it LOOKS is not.
+
 ## Open item 2 — public flip before community-store GA
 
 **Community-store GA is the eventual plan, timed to the app's readiness** (Nick,
@@ -162,7 +203,7 @@ present) does not evidence the production one.
 ## Dev stack
 
 `pnpm install`, `pnpm build` (production, interval floor 5), `pnpm dev` (watch, floor 1 plus
-the `riverbed-fail-write` fault injection), `pnpm test` (vitest, 115). Install by copying
+the `riverbed-fail-write` fault injection), `pnpm test` (vitest, 146). Install by copying
 `main.js` + `manifest.json` into `<vault>/.obsidian/plugins/riverbed/`. The reader is live at
 `https://riverbedfeed.com`; mint outbox tokens there under Settings, API tokens.
 
@@ -173,7 +214,15 @@ project has since shipped. Any further work needs explicit authorization.
 
 ## Next action
 
-Merge `fix/destination-folder-traversal` (PR to `main`), then close Asana
-`1216891285405648`. The installed production build in `Knowsmore/.obsidian/plugins/riverbed/`
-is still `0.1.1` and does NOT carry this fix; rebuild and copy `main.js` + `manifest.json`
-after merging, or cut a `0.1.2` release.
+1. Merge **PR #2** (`fix/destination-folder-traversal`) into `main`, close Asana
+   `1216891285405648`.
+2. Retarget **PR #3** (`feat/ribbon-and-sync-feedback`) to `main` and merge it, close Asana
+   `1216863724808780` and `1216863923333571`.
+3. **Rebuild and reinstall.** The production build in `Knowsmore/.obsidian/plugins/riverbed/`
+   is still `0.1.1` and carries NEITHER change. `pnpm build`, then copy `main.js` +
+   `manifest.json`, or cut a `0.1.2` release (tags are bare semver, `versions.json`
+   accumulates, never move a published tag).
+
+Blocked on Nick, not on code: Asana `1216891949686167` (gate-test residue) needs two
+decisions, namely whether to un-ack his 8 real saves in Mongo so they redeliver to the real
+vault, and whether to delete `~/Desktop/riverbed-test-vault`.

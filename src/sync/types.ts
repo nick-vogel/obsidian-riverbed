@@ -46,6 +46,24 @@ export interface SyncDeps {
 	/** Vault-relative destination folder. Empty string means the vault root. */
 	folder: string;
 	log?: (message: string) => void;
+	/**
+	 * Called when a pass ACTUALLY starts, i.e. only after the single-flight guard has let it
+	 * through, and before any network call.
+	 *
+	 * Separate from `onProgress` because the status bar has to change before the outbox has
+	 * answered, or a slow server looks identical to an idle plugin. Firing it inside the
+	 * guard is what makes it safe: a caller cannot announce a start for a pass that was
+	 * skipped, and so cannot overwrite a running pass's progress with a bare "syncing...".
+	 */
+	onPassStart?: () => void;
+	/**
+	 * Called once the outbox has reported a count, and again after each entry settles.
+	 *
+	 * Exists so the status bar can show a pass IN FLIGHT. Without it the bar keeps showing
+	 * the previous outcome for the whole pass, which makes a slow or wedged sync look exactly
+	 * like an idle one.
+	 */
+	onProgress?: (done: number, total: number) => void;
 }
 
 export interface SyncResult {
@@ -53,6 +71,18 @@ export interface SyncResult {
 	delivered: number;
 	/** Entries that could not be written and were reported back to the outbox. */
 	failed: number;
+	/**
+	 * Entries the outbox reported at the start of the pass.
+	 *
+	 * Today this is provably `delivered + failed`: the loop increments exactly one of the two
+	 * per entry and never breaks, so `pending === 0` and `delivered === 0 && failed === 0` are
+	 * the same predicate. It is carried anyway, for one honest reason and not the one that
+	 * might be assumed: it states what the pass was ASKED to do, independently of how the
+	 * counts happen to be maintained. "Was there anything to sync" and "did anything come out
+	 * of it" are different questions, and the first should not stop being answerable if the
+	 * loop ever gains an early exit or a third outcome.
+	 */
+	pending: number;
 }
 
 /**
