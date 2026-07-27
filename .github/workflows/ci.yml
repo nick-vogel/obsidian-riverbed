@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # Documentation-only pushes do not run the suite. The pipeline writes a
+    # docs/HANDOFF.md update at every close and lands it straight on main
+    # (doc-only status corrections skip the PR), so without this each one bills a
+    # full install + typecheck + tests + production build.
+    #
+    # Safe because no markdown file is a build or test input: nothing under src/
+    # or tests/ reads one. This is GitHub's native paths-ignore (a commit runs the
+    # suite if ANY changed file falls outside these patterns), NOT a `!` negation
+    # inside a `paths:` list, which ORs its matches and fires MORE often.
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+  # Deliberately unconditional. A skipped check still reports as skipped, and this
+  # one is REQUIRED under branch protection: a doc-only PR whose check never ran
+  # could not be merged.
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # Superseded PR runs are pure waste. Push runs are never cancelled.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: checks
+    runs-on: ubuntu-latest
+    # The whole job is an install plus three fast commands. Without a cap the cost
+    # of a hang is GitHub's 6-hour default, not "a slow job".
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Production build
+        run: pnpm build
+
+      # The dev build carries a fault-injection sentinel that must never reach a
+      # shipped artifact. Checked here as well as by hand, because "we always
+      # remember to grep before releasing" is not a gate.
+      - name: Fault-injection sentinel absent from the production bundle
+        run: |
+          if grep -q 'riverbed-fail-write' main.js; then
+            echo "::error::fault-injection sentinel found in the production bundle"
+            exit 1
+          fi
+          echo "sentinel absent"
