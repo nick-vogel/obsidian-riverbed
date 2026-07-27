@@ -229,6 +229,100 @@ test target is stale.
 Community-store GA is settled and gated on the application; see the section below, and do not
 raise it.
 
+CI and branch protection are now in place (PR #4). `main` requires a pull request and a
+green `checks` run, `enforce_admins` is true, and force-push and deletion are off. Verified
+by pushing as an admin and being rejected, not by reading the API back.
+
+`.github/workflows/ci.yml` runs install, typecheck, the 146 tests, the production build, and
+a grep proving the dev-only `riverbed-fail-write` sentinel is absent from the bundle. That
+last one had been a manual step before every release.
+
+**pnpm version trap, which cost a red run:** `pnpm-workspace.yaml` here holds only
+`onlyBuiltDependencies`, a **pnpm 10** settings file. pnpm 9 reads it as a workspace manifest
+and dies with "packages field missing or empty" before install starts. The version now comes
+from `package.json`'s `packageManager` field alone, which `pnpm/action-setup` reads. Do not
+re-pin it in the workflow; having it in two places is what let it drift.
+
+## Community-store GA — SETTLED, gated on the application. Do NOT raise it.
+
+Nick, 2026-07-26, verbatim: **"flip is gated on application, you can stop asking."**
+
+So this is NOT an open item and must not be listed as one, offered, or nominated. It happens
+when he says it happens, on the application's readiness, not the plugin's.
+
+Recorded only so the facts survive: the store requires a PUBLIC repo, so the private setting
+is temporary; nothing technical blocks the flip (the code is secret-free, verified in review,
+and AC 19's release hygiene already matches what a listing needs); plugin id `riverbed` was
+available against all 6,076 listed community plugins on 2026-07-26, and that list moves, so
+re-check immediately before any submission.
+
+## What a fresh session most needs to know
+
+**Two defects reached "done" and were caught only by an adversarial reader, AFTER a full
+attended pass of all 12 manual GUI gates passed green:**
+
+1. The collision guard used `getAbstractFileByPath`, Obsidian's CASE-SENSITIVE in-memory
+   index, while APFS and NTFS are case-INSENSITIVE. With `note.md` on disk and a capture
+   named `Note.md`, the index answered "absent", `Vault.create` hit the same inode, and the
+   user's edited note was **truncated**, then acked so the outbox dropped it. The AC 9
+   gates had been staged with exact-case names, the direction that works.
+2. `sanitizeFilename` sanitized the filename but interpolated the server-controlled entry
+   `id` RAW into its fallback, so an id containing `../` wrote **outside the vault**. It
+   survived two reviews because every fallback test used a benign id.
+
+Also shipped once: a test asserting `not.toContain('�')`, which JS string slicing can
+never produce. It passed while the bug it guarded was live. **Every assertion added since is
+mutation-verified** (revert the code, confirm the test fails). Do not add one that is not.
+
+**Therefore, if you touch this code:** manual gates and `/eng:review-code` catch disjoint
+classes, run both; stage the adversarial direction of anything you probe, not just the happy
+one; and a gate run only in the permissive build configuration (dev floor 1, fault injection
+present) does not evidence the production one.
+
+## Gotchas worth not rediscovering
+
+- **The `obsidian` package ships TYPES ONLY**, no runtime entry, so any module importing it
+  cannot be loaded by vitest. Pure logic lives in obsidian-free modules (`src/url.ts`,
+  `src/settings.ts`, `src/sync/*`) precisely so it is testable.
+- **`Setting.addText().onChange` fires per KEYSTROKE.** Validate on `blur`, never inline, or
+  an ordinary edit is impossible.
+- **`SettingTab` is not a `Component`**, so `registerDomEvent` there binds to the plugin's
+  lifetime while `display()` re-runs on every settings open. Use plain `addEventListener`.
+- **Release tags are bare semver, no `v` prefix.** `versions.json` ACCUMULATES entries.
+  Never move a published tag; roll forward.
+- **BRAT** wants `owner/repo`, NOT a URL, and a fine-grained PAT with the repository
+  selected but **no permissions added** fails with the same "Repository not found". It needs
+  `Contents: Read-only`.
+- **Developer console on macOS is Cmd-Option-I**, not Ctrl-Shift-I.
+- **Reset a test vault THROUGH Obsidian**, or restart it afterward. Moving files out from
+  under a running Obsidian leaves a stale index that produces false gate signals.
+
+## Dev stack
+
+`pnpm install`, `pnpm build` (production, interval floor 5), `pnpm dev` (watch, floor 1 plus
+the `riverbed-fail-write` fault injection), `pnpm test` (vitest, 146). Install by copying
+`main.js` + `manifest.json` into `<vault>/.obsidian/plugins/riverbed/`. The reader is live at
+`https://riverbedfeed.com`; mint outbox tokens there under Settings, API tokens.
+
+## Continuous-mode authorization
+
+**None standing.** The original autonomous authorization was discharged at Phase 2 and the
+project has since shipped. Any further work needs explicit authorization.
+
+## Next action
+
+Nothing is in flight. **Release `0.2.0` is cut and installed**, and all three follow-up Asana
+tasks are closed.
+
+The gate-test residue task (`1216891949686167`) is CLOSED: Nick resolved the 8 saves and
+deleted the throwaway test vaults himself on 2026-07-26. **`~/Desktop/riverbed-test-vault` no
+longer exists**, and no dev build of the plugin is installed anywhere; the only install is the
+production 0.2.0 in Knowsmore. Anything below or elsewhere referring to that vault as a live
+test target is stale.
+
+Community-store GA is settled and gated on the application; see the section below, and do not
+raise it.
+
 The one thing still unresolved and worth a decision: **`main` on this repo is NOT branch-protected**, which
 is out of step with the standing default applied to the other active repos on 2026-07-25.
 Both merges above went in unprotected.
