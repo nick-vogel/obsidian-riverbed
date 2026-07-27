@@ -149,14 +149,18 @@ trigger policy, glyph geometry and pass-start guard, all caught.
 **Still needs a human:** the glyph's weight and balance at 18px next to Obsidian's own icons.
 Geometry is asserted; how it LOOKS is not.
 
-## Open item 2 — public flip before community-store GA
+## Community-store GA — SETTLED, gated on the application. Do NOT raise it.
 
-**Community-store GA is the eventual plan, timed to the app's readiness** (Nick,
-2026-07-26). The store requires a **PUBLIC** repo, so the current private setting is
-explicitly temporary. Nothing blocks the flip: the code is secret-free (verified in review)
-and AC 19's release hygiene already matches what a listing needs. Plugin id `riverbed` was
-verified available against all 6,076 listed community plugins on 2026-07-26; re-check
-immediately before submitting, the list moves.
+Nick, 2026-07-26, verbatim: **"flip is gated on application, you can stop asking."**
+
+So this is NOT an open item and must not be listed as one, offered, or nominated. It happens
+when he says it happens, on the application's readiness, not the plugin's.
+
+Recorded only so the facts survive: the store requires a PUBLIC repo, so the private setting
+is temporary; nothing technical blocks the flip (the code is secret-free, verified in review,
+and AC 19's release hygiene already matches what a listing needs); plugin id `riverbed` was
+available against all 6,076 listed community plugins on 2026-07-26, and that list moves, so
+re-check immediately before any submission.
 
 ## What a fresh session most needs to know
 
@@ -216,14 +220,15 @@ project has since shipped. Any further work needs explicit authorization.
 Nothing is in flight. **Release `0.2.0` is cut and installed**, and all three follow-up Asana
 tasks are closed.
 
-Two items remain, neither blocked on code:
+The gate-test residue task (`1216891949686167`) is CLOSED: Nick resolved the 8 saves and
+deleted the throwaway test vaults himself on 2026-07-26. **`~/Desktop/riverbed-test-vault` no
+longer exists**, and no dev build of the plugin is installed anywhere; the only install is the
+production 0.2.0 in Knowsmore. Anything below or elsewhere referring to that vault as a live
+test target is stale.
 
-1. **Asana `1216891949686167` (gate-test residue)** needs two decisions from Nick: whether to
-   un-ack his 8 real saves in Mongo so they redeliver to the real vault, and whether to delete
-   `~/Desktop/riverbed-test-vault` (~67 files plus a dev build).
-2. **Open item 2 below**, the public flip before community-store GA, timed to the app's
-   readiness.
+Community-store GA is settled and gated on the application; see the section below, and do not
+raise it.
 
-Also unresolved and worth a decision: **`main` on this repo is NOT branch-protected**, which
+The one thing still unresolved and worth a decision: **`main` on this repo is NOT branch-protected**, which
 is out of step with the standing default applied to the other active repos on 2026-07-25.
 Both merges above went in unprotected.
