@@ -146,8 +146,9 @@ mutants over `status.ts`/`ribbon.ts`/`runSync.ts`/`types.ts` with 1 survivor (an
 optional field documenting the wire shape), plus 23 targeted value mutations across the
 trigger policy, glyph geometry and pass-start guard, all caught.
 
-**Still needs a human:** the glyph's weight and balance at 18px next to Obsidian's own icons.
-Geometry is asserted; how it LOOKS is not.
+**Glyph CONFIRMED by Nick 2026-07-26.** It was the one thing tests could not judge (geometry is
+asserted, weight and balance at 18px are not). Settled: the stroked three-wave mark at baselines
+20/50/80 is the shipped glyph. Nothing outstanding on it.
 
 ## Community-store GA — SETTLED, gated on the application. Do NOT raise it.
 
