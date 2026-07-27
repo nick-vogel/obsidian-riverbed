@@ -1,7 +1,12 @@
 import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type RiverbedPlugin from './main';
 import { DEFAULT_SETTINGS, MAX_INTERVAL_MINUTES, clampInterval } from './settings';
+import { folderNotice, sanitizeFolder } from './sync/sanitize';
 import { normalizeBaseUrl, testConnection } from './outboxClient';
+
+function reasonOf(e: unknown): string {
+	return e instanceof Error ? e.message : String(e);
+}
 
 export class RiverbedSettingTab extends PluginSettingTab {
 	private plugin: RiverbedPlugin;
@@ -9,6 +14,20 @@ export class RiverbedSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: RiverbedPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	/**
+	 * Persist without returning a promise to a caller that will not await it.
+	 *
+	 * Neither Obsidian's `onChange` nor a DOM listener awaits what it is handed, so an
+	 * async handler's rejection surfaces as a bare unhandled rejection with no indication
+	 * of which control produced it. Failing to write data.json is worth a line in the
+	 * console naming the setting that was lost.
+	 */
+	private persist(what: string): void {
+		this.plugin.saveSettings().catch((e) => {
+			console.log(`Riverbed: could not save the ${what} setting: ${reasonOf(e)}`);
+		});
 	}
 
 	display(): void {
@@ -23,9 +42,9 @@ export class RiverbedSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder(DEFAULT_SETTINGS.baseUrl)
 					.setValue(this.plugin.settings.baseUrl)
-					.onChange(async (value) => {
+					.onChange((value) => {
 						this.plugin.settings.baseUrl = value.trim();
-						await this.plugin.saveSettings();
+						this.persist('base URL');
 					}),
 			);
 
@@ -37,24 +56,54 @@ export class RiverbedSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder('Paste your outbox token')
 					.setValue(this.plugin.settings.token)
-					.onChange(async (value) => {
+					.onChange((value) => {
 						this.plugin.settings.token = value.trim();
-						await this.plugin.saveSettings();
+						this.persist('API token');
 					});
 			});
 
 		new Setting(containerEl)
 			.setName('Destination folder')
-			.setDesc('Vault folder captures are written to. Created if it does not exist.')
-			.addText((text) =>
+			.setDesc(
+				'Vault folder captures are written to. Created if it does not exist. Nest with "/", ' +
+					'for example "research/inbox". Leave empty to write to the vault root.',
+			)
+			.addText((text) => {
 				text
-					.setPlaceholder(DEFAULT_SETTINGS.folder)
+					// NOT the default folder. A placeholder reads as "leave this empty and you
+					// get that", and empty means the vault root here, not `inbox`.
+					.setPlaceholder('Vault root')
 					.setValue(this.plugin.settings.folder)
-					.onChange(async (value) => {
-						this.plugin.settings.folder = value.trim();
-						await this.plugin.saveSettings();
-					}),
-			);
+					.onChange((value) => {
+						// Persist only a SAFE value while typing, and do NOT rewrite the text
+						// under the caret: this fires on every keystroke, so calling setValue
+						// here would fight an ordinary edit. Same shape as the interval field.
+						this.plugin.settings.folder = sanitizeFolder(value).folder;
+						this.persist('destination folder');
+					});
+
+				// Validate on COMMIT. Persistence is already safe (and runSync sanitizes again
+				// regardless), so this exists to TELL the user their folder changed, right away
+				// rather than silently on the next sync. Plain addEventListener, deliberately:
+				// SettingTab is not a Component, so registerDomEvent would bind to the PLUGIN's
+				// lifetime while display() re-runs on every settings open, leaking one handler
+				// per open against a detached input.
+				text.inputEl.addEventListener('blur', () => {
+					const result = sanitizeFolder(text.inputEl.value);
+					this.plugin.settings.folder = result.folder;
+
+					const notice = folderNotice(result);
+					if (notice !== null) {
+						// Rewrite the field only when something was actually corrected, and say
+						// so. Rewriting unconditionally would strip a deliberately-typed trailing
+						// separator: type `research/`, click away to read something, click back
+						// and type `inbox`, and you get `researchinbox`.
+						text.setValue(result.folder);
+						new Notice(notice);
+					}
+					this.persist('destination folder');
+				});
+			});
 
 		new Setting(containerEl)
 			.setName('Sync interval')
@@ -66,7 +115,7 @@ export class RiverbedSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder(String(DEFAULT_SETTINGS.intervalMinutes))
 					.setValue(String(this.plugin.settings.intervalMinutes))
-					.onChange(async (value) => {
+					.onChange((value) => {
 						// While typing, PERSIST only a legal value and otherwise do nothing.
 						// Rejecting per keystroke makes an ordinary edit impossible: this
 						// control's onChange fires on every input event, so clearing the field
@@ -79,20 +128,18 @@ export class RiverbedSettingTab extends PluginSettingTab {
 							return;
 						}
 						this.plugin.settings.intervalMinutes = parsed;
-						await this.plugin.saveSettings();
 						// Rearm the timer, or the change only takes effect on the next restart.
+						// Ahead of the save, and not chained off it, because the timer reads the
+						// in-memory value: a failed write to data.json should not also cost the
+						// user the interval they are running right now.
 						this.plugin.rescheduleSync();
+						this.persist('sync interval');
 					});
 
 				// Validate on COMMIT, not on input. Persistence is already safe (onChange
 				// above never stores a sub-floor value); this restores the displayed value
 				// once the user leaves the field and tells them why their entry did not take.
-				// Plain addEventListener, deliberately: SettingTab is not a Component, so
-				// registerDomEvent would bind to the PLUGIN's lifetime, and display() runs on
-				// every settings-tab open after emptying containerEl, leaking one handler per
-				// open against a detached input. The post-unload concern it would address is
-				// already covered by rescheduleSync's own unloaded guard.
-				text.inputEl.addEventListener('blur', async () => {
+				text.inputEl.addEventListener('blur', () => {
 					const parsed = Number(text.inputEl.value);
 					if (Number.isFinite(parsed) && parsed >= floor && parsed <= MAX_INTERVAL_MINUTES) {
 						text.setValue(String(parsed));
@@ -108,8 +155,8 @@ export class RiverbedSettingTab extends PluginSettingTab {
 					const kept = clampInterval(this.plugin.settings.intervalMinutes, floor);
 					this.plugin.settings.intervalMinutes = kept;
 					text.setValue(String(kept));
-					await this.plugin.saveSettings();
 					this.plugin.rescheduleSync();
+					this.persist('sync interval');
 				});
 			});
 
@@ -117,9 +164,9 @@ export class RiverbedSettingTab extends PluginSettingTab {
 			.setName('Notifications')
 			.setDesc('Show a notice when a sync delivers new captures.')
 			.addToggle((toggle) =>
-				toggle.setValue(this.plugin.settings.notifications).onChange(async (value) => {
+				toggle.setValue(this.plugin.settings.notifications).onChange((value) => {
 					this.plugin.settings.notifications = value;
-					await this.plugin.saveSettings();
+					this.persist('notifications');
 				}),
 			);
 
@@ -130,33 +177,40 @@ export class RiverbedSettingTab extends PluginSettingTab {
 				button
 					.setButtonText('Test connection')
 					.setCta()
-					.onClick(async () => {
+					.onClick(() => {
 						const { baseUrl, token } = this.plugin.settings;
 						const shown = normalizeBaseUrl(baseUrl);
 						button.setDisabled(true);
-						try {
-							const result = await testConnection(baseUrl, token);
-							switch (result.kind) {
-								case 'connected':
-									new Notice(
-										result.pending === null
-											? 'Riverbed: connected.'
-											: `Riverbed: connected. ${result.pending} capture${result.pending === 1 ? '' : 's'} pending.`,
-									);
-									break;
-								case 'auth-failed':
-									new Notice('Riverbed: authentication failed, check your token.');
-									break;
-								case 'unexpected-status':
-									new Notice(`Riverbed: unexpected response (${result.status}) from ${shown}.`);
-									break;
-								case 'unreachable':
-									new Notice(`Riverbed: could not reach ${shown}.`);
-									break;
-							}
-						} finally {
-							button.setDisabled(false);
-						}
+						testConnection(baseUrl, token)
+							.then((result) => {
+								switch (result.kind) {
+									case 'connected':
+										new Notice(
+											result.pending === null
+												? 'Riverbed: connected.'
+												: `Riverbed: connected. ${result.pending} capture${result.pending === 1 ? '' : 's'} pending.`,
+										);
+										break;
+									case 'auth-failed':
+										new Notice('Riverbed: authentication failed, check your token.');
+										break;
+									case 'unexpected-status':
+										new Notice(`Riverbed: unexpected response (${result.status}) from ${shown}.`);
+										break;
+									case 'unreachable':
+										new Notice(`Riverbed: could not reach ${shown}.`);
+										break;
+								}
+							})
+							// testConnection catches its own network failures, so reaching here
+							// means something unforeseen. Without this the button would re-enable
+							// (the finally still runs) having shown the user nothing at all.
+							.catch((e) => {
+								new Notice(`Riverbed: could not test the connection. ${reasonOf(e)}`);
+							})
+							.finally(() => {
+								button.setDisabled(false);
+							});
 					}),
 			);
 	}

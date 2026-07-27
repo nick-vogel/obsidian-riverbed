@@ -19,17 +19,44 @@ export class FakeVault implements SyncVault {
 		return contents;
 	}
 
+	/**
+	 * A real filesystem cannot put anything inside a FILE, so neither can this. Without it
+	 * the fake happily creates `research/inbox/a.md` while a note sits at `research`, and a
+	 * test written against that is a statement about the fake rather than about the vault.
+	 */
+	private assertNoFileAncestor(path: string): void {
+		const parts = path.split('/');
+		for (let i = 1; i < parts.length; i++) {
+			const ancestor = parts.slice(0, i).join('/');
+			if (this.files.has(ancestor)) throw new Error(`not a folder: ${ancestor}`);
+		}
+	}
+
 	async create(path: string, contents: string): Promise<void> {
 		if (this.writeDelayMs > 0) {
 			await new Promise((resolve) => setTimeout(resolve, this.writeDelayMs));
 		}
 		if (this.failWrites.has(path)) throw new Error(`induced write failure: ${path}`);
 		if (this.files.has(path)) throw new Error(`file already exists: ${path}`);
+		this.assertNoFileAncestor(path);
 		this.files.set(path, contents);
 	}
 
+	/**
+	 * Matches the SyncVault contract and main.ts's real adapter: idempotent for a folder
+	 * that is already there, throwing only when a FILE occupies the path.
+	 *
+	 * It used to throw on an existing folder, which the real adapter does not do (it stats
+	 * first and returns). A fake that is stricter or looser than the real thing makes every
+	 * test written against it a statement about the fake.
+	 *
+	 * Still deliberately unlike the real thing in one respect: this is case-SENSITIVE, while
+	 * APFS and NTFS are not. Case handling is the plugin's own documented hazard and is
+	 * guarded in main.ts by going through the adapter rather than the index.
+	 */
 	async createFolder(path: string): Promise<void> {
-		if (this.folders.has(path)) throw new Error(`folder already exists: ${path}`);
+		if (this.files.has(path)) throw new Error(`a file already exists at: ${path}`);
+		this.assertNoFileAncestor(path);
 		this.folders.add(path);
 	}
 }

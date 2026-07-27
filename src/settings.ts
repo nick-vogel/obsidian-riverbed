@@ -2,6 +2,8 @@
 // bundled and exercised headlessly (see the phase-1 plan, step 3 gate). Anything that
 // touches Obsidian's runtime belongs in settingsTab.ts or main.ts.
 
+import { sanitizeFolder } from './sync/sanitize';
+
 export interface RiverbedSettings {
 	/** Base URL of the Riverbed instance, no trailing slash required. */
 	baseUrl: string;
@@ -53,6 +55,41 @@ export function clampInterval(loaded: number, floor: number): number {
 		return Math.max(DEFAULT_SETTINGS.intervalMinutes, floor);
 	}
 	return Math.min(Math.max(loaded, floor), MAX_INTERVAL_MINUTES);
+}
+
+/**
+ * Merge whatever `data.json` holds onto the defaults and make it safe to run with.
+ *
+ * Lives here, not inline in `main.ts`'s `loadSettings`, so it is actually testable: main.ts
+ * imports `obsidian`, which ships types with no runtime entry, so vitest cannot load that
+ * module at all. Inline, every one of these normalizations was a line no test could reach.
+ *
+ * `loaded` is deliberately `unknown`: the file is user-editable and can hold anything.
+ */
+export function normalizeSettings(loaded: unknown, floor: number): RiverbedSettings {
+	const merged: RiverbedSettings = Object.assign(
+		{},
+		DEFAULT_SETTINGS,
+		(loaded ?? {}) as Partial<RiverbedSettings>,
+	);
+
+	// Clamp on load, not only in the settings control: an interval persisted under a dev
+	// build's floor of 1 must not keep running sub-floor once the same data.json is opened
+	// by a production build.
+	merged.intervalMinutes = clampInterval(Number(merged.intervalMinutes), floor);
+
+	// Same reasoning for the folder. runSync sanitizes again at write time regardless, so
+	// nothing escapes the vault either way, but without this the settings screen would go on
+	// displaying a hand-edited `../../notes` as if it were the folder in use, and
+	// saveSettings would write it straight back.
+	merged.folder = sanitizeFolder(merged.folder).folder;
+
+	// A non-string here would reach `fetch` and `trim()` as-is.
+	merged.baseUrl = typeof merged.baseUrl === 'string' ? merged.baseUrl : DEFAULT_SETTINGS.baseUrl;
+	merged.token = typeof merged.token === 'string' ? merged.token : '';
+	merged.notifications = Boolean(merged.notifications);
+
+	return merged;
 }
 
 /**

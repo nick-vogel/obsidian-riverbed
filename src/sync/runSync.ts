@@ -1,5 +1,5 @@
 import { resolveTarget } from './resolve';
-import { sanitizeFilename } from './sanitize';
+import { sanitizeFilename, sanitizeFolder } from './sanitize';
 import { SyncDeps, SyncResult, isOutboxItem } from './types';
 
 function reasonOf(e: unknown): string {
@@ -45,7 +45,26 @@ export class SyncRunner {
 		const items = await deps.outbox.getPending();
 		if (items.length === 0) return { delivered: 0, failed: 0 };
 
-		await this.ensureFolder(deps);
+		// Defense in depth, covering both the folder creation below and every write in the
+		// loop. In the shipped plugin this should never actually change anything: every
+		// writer of `settings.folder` already sanitizes (normalizeSettings on load, and both
+		// handlers on the settings control), and sanitizeFolder is idempotent, so a folder
+		// reaching here is already clean. That is exactly why it stays. This is the last
+		// point before a path is joined to the vault root, and it must not depend on every
+		// caller upstream having remembered.
+		const cleaned = sanitizeFolder(deps.folder);
+		const folder = cleaned.folder;
+		if (cleaned.escaped || cleaned.changed) {
+			// If it ever DOES change something, that means a path upstream skipped its
+			// sanitize, and silently papering over that is how a folder diverges from what
+			// the settings screen displays with nothing anywhere explaining why.
+			deps.log?.(
+				`Riverbed: destination folder "${deps.folder}" is not usable as configured, writing to ` +
+					`${folder === '' ? 'the vault root' : `"${folder}"`}`,
+			);
+		}
+
+		await this.ensureFolder(deps, folder);
 
 		let delivered = 0;
 		let failed = 0;
@@ -61,12 +80,7 @@ export class SyncRunner {
 					throw new Error('malformed outbox entry: renderedMarkdown or suggestedFilename is not a string');
 				}
 				const filename = sanitizeFilename(item.suggestedFilename, item.id);
-				const target = await resolveTarget(
-					deps.vault,
-					deps.folder,
-					filename,
-					item.renderedMarkdown,
-				);
+				const target = await resolveTarget(deps.vault, folder, filename, item.renderedMarkdown);
 				if (target.action === 'write') {
 					await deps.vault.create(target.path, item.renderedMarkdown);
 				}
@@ -98,16 +112,34 @@ export class SyncRunner {
 		return { delivered, failed };
 	}
 
-	private async ensureFolder(deps: SyncDeps): Promise<void> {
-		const folder = deps.folder.replace(/^\/+|\/+$/g, '');
+	/**
+	 * Create the destination folder if it is missing, one level at a time.
+	 *
+	 * Walks the path rather than creating only the deepest segment, because a nested
+	 * destination (`research/inbox`) is supported and creating a leaf whose parent does not
+	 * exist is not something Obsidian's `createFolder` is documented to do. Walking removes
+	 * the dependence on that undocumented behaviour.
+	 *
+	 * There is deliberately no `exists` pre-check. `exists` is true for a file as well as a
+	 * folder, so guarding with it SKIPS a level where a note is sitting in the way, and the
+	 * problem then resurfaces as a write failure whose reason names the wrong thing.
+	 * `createFolder` is idempotent and throws only when a non-folder occupies the path, so
+	 * calling it unconditionally is both correct and the only way to learn that.
+	 *
+	 * @param folder already through `sanitizeFolder`; see the call site in `pass`.
+	 */
+	private async ensureFolder(deps: SyncDeps, folder: string): Promise<void> {
 		if (folder === '') return;
-		if (await deps.vault.exists(folder)) return;
-		try {
-			await deps.vault.createFolder(folder);
-		} catch (e) {
-			// Another pass (or the user) may have created it in between; only a genuinely
-			// missing folder is a problem, and the per-entry writes below will surface that.
-			deps.log?.(`Riverbed: could not create "${folder}": ${reasonOf(e)}`);
+		let current = '';
+		for (const part of folder.split('/')) {
+			current = current === '' ? part : `${current}/${part}`;
+			try {
+				await deps.vault.createFolder(current);
+			} catch (e) {
+				// A note in the way, or a permissions problem. Report it and carry on: the
+				// per-entry writes below fail too, and this is the line that says why.
+				deps.log?.(`Riverbed: could not create "${current}": ${reasonOf(e)}`);
+			}
 		}
 	}
 }

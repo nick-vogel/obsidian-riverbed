@@ -33,6 +33,148 @@ describe('runSync — delivery', () => {
 		expect(vault.files.get('inbox/a.md')).toBe('body');
 	});
 
+	it('sanitizes the DESTINATION FOLDER before writing or creating anything', async () => {
+		// The hole this closes: a user-typed `../../notes` escaped the vault. normalizePath
+		// does not resolve `..`, but the adapter joins with the vault path and Node's
+		// path.join does. Every upstream writer of settings.folder sanitizes too, so in the
+		// shipped plugin this pass should never see a dirty folder. It sanitizes anyway
+		// because it is the last point before a path is joined to the vault root.
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+
+		await new SyncRunner().run(deps(vault, outbox, '../../notes'));
+
+		expect(vault.files.get('notes/a.md')).toBe('body');
+		for (const path of [...vault.files.keys(), ...vault.folders]) {
+			expect(path).not.toContain('..');
+			expect(path.startsWith('/')).toBe(false);
+		}
+		expect(outbox.acked).toEqual(['1']);
+	});
+
+	it('LOGS that it corrected the folder, instead of diverging silently', async () => {
+		// If this ever fires in production it means a path upstream skipped its sanitize.
+		// Papering over that would let the folder in use diverge from the one the settings
+		// screen displays, with nothing anywhere saying why.
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+		const logged: string[] = [];
+
+		await new SyncRunner().run({
+			...deps(vault, outbox, '../../notes'),
+			log: (m: string) => logged.push(m),
+		});
+
+		expect(logged).toHaveLength(1);
+		expect(logged[0]).toContain('../../notes');
+		expect(logged[0]).toContain('"notes"');
+	});
+
+	it('stays quiet when the folder needed no correction', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+		const logged: string[] = [];
+
+		await new SyncRunner().run({
+			...deps(vault, outbox, 'inbox'),
+			log: (m: string) => logged.push(m),
+		});
+
+		expect(logged).toEqual([]);
+	});
+
+	it('sanitizes an ABSOLUTE destination folder too', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+
+		await new SyncRunner().run(deps(vault, outbox, '/Users/me/.ssh'));
+
+		expect(vault.files.get('Users/me/ssh/a.md')).toBe('body');
+		for (const path of [...vault.files.keys(), ...vault.folders]) {
+			expect(path.startsWith('/')).toBe(false);
+		}
+	});
+
+	it('creates NOTHING when there is nothing to deliver', async () => {
+		// An empty pass must not touch the vault at all. Without the early return the folder
+		// is created on the very first poll of a freshly configured plugin, before a single
+		// capture exists, which is a directory appearing in someone's vault unbidden.
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([]);
+
+		const result = await new SyncRunner().run(deps(vault, outbox));
+
+		expect(result).toEqual({ delivered: 0, failed: 0 });
+		expect([...vault.folders]).toEqual([]);
+		expect([...vault.files.keys()]).toEqual([]);
+	});
+
+	it('creates no folder at all when the destination is the vault root', async () => {
+		// Without the empty-folder guard the walk creates a folder named '' at the root.
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+
+		await new SyncRunner().run(deps(vault, outbox, ''));
+
+		expect([...vault.folders]).toEqual([]);
+		expect(vault.files.get('a.md')).toBe('body');
+	});
+
+	it('names the level a NOTE is blocking, instead of a misleading write error', async () => {
+		// A file sitting where an intermediate folder should go. Guarding the walk with
+		// `exists` skipped this level silently, because exists() is true for a file too, and
+		// the user then saw only a failed write naming the leaf.
+		const vault = new FakeVault();
+		vault.files.set('research', 'a note, not a folder');
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+		const logged: string[] = [];
+
+		const result = await new SyncRunner().run({
+			...deps(vault, outbox, 'research/inbox'),
+			log: (m: string) => logged.push(m),
+		});
+
+		expect(logged.some((m) => m.includes('could not create') && m.includes('"research"'))).toBe(
+			true,
+		);
+		// And the entry is failed and reported rather than silently lost.
+		expect(result).toEqual({ delivered: 0, failed: 1 });
+		expect(outbox.acked).toEqual([]);
+		expect(outbox.reported.map((r) => r.id)).toEqual(['1']);
+	});
+
+	it('creates a NESTED destination folder one level at a time', async () => {
+		// Creating only the leaf relies on Obsidian's createFolder making parents, which it
+		// is not documented to do. Nested destinations are supported, so walk the path.
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+
+		await new SyncRunner().run(deps(vault, outbox, 'research/inbox'));
+
+		expect([...vault.folders]).toEqual(['research', 'research/inbox']);
+		expect(vault.files.get('research/inbox/a.md')).toBe('body');
+	});
+
+	it('stays silent when a nested level already exists, pass after pass', async () => {
+		// createFolder is idempotent by contract, matching main.ts's real adapter, which
+		// stats and returns early for a folder already there. It is called unconditionally
+		// on every level of every pass, so anything less than idempotent would log a failure
+		// forever. Do NOT "fix" this by reinstating an exists() guard: exists() is true for a
+		// FILE too, which is the bug the unconditional call exists to surface.
+		const vault = new FakeVault();
+		vault.folders.add('research');
+		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
+		const logged: string[] = [];
+
+		await new SyncRunner().run({
+			...deps(vault, outbox, 'research/inbox'),
+			log: (m: string) => logged.push(m),
+		});
+
+		expect(logged).toEqual([]);
+		expect(vault.files.get('research/inbox/a.md')).toBe('body');
+	});
+
 	it('sanitizes the filename before writing', async () => {
 		const vault = new FakeVault();
 		const outbox = new FakeOutbox([item('1', '../escape:me', 'body')]);
@@ -68,13 +210,20 @@ describe('runSync — ack-after-write ordering', () => {
 		const vault = new FakeVault();
 		const outbox = new FakeOutbox([item('1', 'a.md', 'body'), item('2', 'b.md', 'other')]);
 		outbox.failAckFor.add('1');
+		const logged: string[] = [];
 
-		const result = await new SyncRunner().run(deps(vault, outbox));
+		const result = await new SyncRunner().run({
+			...deps(vault, outbox),
+			log: (m: string) => logged.push(m),
+		});
 
 		expect(vault.files.get('inbox/a.md')).toBe('body');
 		expect(outbox.reported).toEqual([]);
 		expect(outbox.acked).toEqual(['2']);
 		expect(result).toEqual({ delivered: 2, failed: 0 });
+		// Silent is not good enough: the entry stays pending on the server, so the one
+		// record that it happened at all is this line.
+		expect(logged.some((m) => m.includes('ack failed'))).toBe(true);
 	});
 
 	it('re-acks an entry whose file is already present with identical bytes', async () => {
@@ -94,11 +243,17 @@ describe('runSync — ack-after-write ordering', () => {
 		vault.failWrites.add('inbox/a.md');
 		const outbox = new FakeOutbox([item('1', 'a.md', 'body'), item('2', 'b.md', 'other')]);
 		outbox.failReportFor.add('1');
+		const logged: string[] = [];
 
-		const result = await new SyncRunner().run(deps(vault, outbox));
+		const result = await new SyncRunner().run({
+			...deps(vault, outbox),
+			log: (m: string) => logged.push(m),
+		});
 
 		expect(outbox.acked).toEqual(['2']);
 		expect(result).toEqual({ delivered: 1, failed: 1 });
+		// A write failed AND could not be reported, so nothing upstream knows. Log it.
+		expect(logged.some((m) => m.includes('could not report a failed write'))).toBe(true);
 	});
 });
 
@@ -109,13 +264,14 @@ describe('runSync — single-flight lock', () => {
 		const outbox = new FakeOutbox([item('1', 'a.md', 'body')]);
 		const runner = new SyncRunner();
 
-		const [first, second] = await Promise.all([
-			runner.run(deps(vault, outbox)),
-			runner.run(deps(vault, outbox)),
-		]);
+		const logged: string[] = [];
+		const withLog = () => ({ ...deps(vault, outbox), log: (m: string) => logged.push(m) });
+
+		const [first, second] = await Promise.all([runner.run(withLog()), runner.run(withLog())]);
 
 		expect(first).toEqual({ delivered: 1, failed: 0 });
 		expect(second).toBeNull(); // skipped, not run
+		expect(logged.some((m) => m.includes('already in progress'))).toBe(true);
 		expect(outbox.acked).toEqual(['1']);
 		// One pass means one file: no spurious -2 suffix from two passes racing.
 		expect([...vault.files.keys()]).toEqual(['inbox/a.md']);

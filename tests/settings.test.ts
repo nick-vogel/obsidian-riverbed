@@ -5,6 +5,7 @@ import {
 	RiverbedSettings,
 	clampInterval,
 	isConfigured,
+	normalizeSettings,
 } from '../src/settings';
 import { normalizeBaseUrl } from '../src/url';
 
@@ -99,5 +100,62 @@ describe('normalizeBaseUrl', () => {
 	it('leaves a clean URL untouched, path included', () => {
 		expect(normalizeBaseUrl('http://localhost:3000')).toBe('http://localhost:3000');
 		expect(normalizeBaseUrl('https://host/riverbed')).toBe('https://host/riverbed');
+	});
+});
+
+describe('normalizeSettings — what data.json is allowed to contain', () => {
+	// data.json is a plain file the user can edit, and until this logic moved out of
+	// main.ts (which imports `obsidian` and so cannot be loaded by vitest at all) none of
+	// it was reachable by any test.
+	const FLOOR = 5;
+
+	it('fills in every default when the file is absent or empty', () => {
+		expect(normalizeSettings(null, FLOOR)).toEqual(DEFAULT_SETTINGS);
+		expect(normalizeSettings(undefined, FLOOR)).toEqual(DEFAULT_SETTINGS);
+		expect(normalizeSettings({}, FLOOR)).toEqual(DEFAULT_SETTINGS);
+	});
+
+	it('sanitizes a hand-edited traversal folder rather than displaying it back', () => {
+		// Otherwise the settings screen shows `../../notes` as the folder in use, and the
+		// next saveSettings writes it straight back to disk.
+		expect(normalizeSettings({ folder: '../../notes' }, FLOOR).folder).toBe('notes');
+		expect(normalizeSettings({ folder: '/Users/me/.ssh' }, FLOOR).folder).toBe('Users/me/ssh');
+		expect(normalizeSettings({ folder: 'research/inbox' }, FLOOR).folder).toBe('research/inbox');
+	});
+
+	it('raises a sub-floor interval persisted by a dev build', () => {
+		expect(normalizeSettings({ intervalMinutes: 1 }, FLOOR).intervalMinutes).toBe(FLOOR);
+		expect(normalizeSettings({ intervalMinutes: 30 }, FLOOR).intervalMinutes).toBe(30);
+		expect(normalizeSettings({ intervalMinutes: 99_999 }, FLOOR).intervalMinutes).toBe(
+			MAX_INTERVAL_MINUTES,
+		);
+	});
+
+	it('PRESERVES notifications: false, rather than forcing notices back on', () => {
+		// The discriminating case. Every other assertion here expects `true`, so a mutant
+		// replacing the coercion with `true` outright passed the whole suite: a user who had
+		// turned notices off would silently get them back, and saveSettings would persist
+		// that over their choice.
+		expect(normalizeSettings({ notifications: false }, FLOOR).notifications).toBe(false);
+		expect(normalizeSettings({ notifications: true }, FLOOR).notifications).toBe(true);
+		// Absent means default, which is on.
+		expect(normalizeSettings({}, FLOOR).notifications).toBe(true);
+		// A falsy non-boolean from a hand-edited file reads as off, not as the default.
+		expect(normalizeSettings({ notifications: 0 }, FLOOR).notifications).toBe(false);
+		expect(normalizeSettings({ notifications: '' }, FLOOR).notifications).toBe(false);
+	});
+
+	it('survives every field holding the wrong type', () => {
+		const junk = normalizeSettings(
+			{ baseUrl: 42, token: null, folder: [], intervalMinutes: 'soon', notifications: 'yes' },
+			FLOOR,
+		) as RiverbedSettings;
+		expect(junk.baseUrl).toBe(DEFAULT_SETTINGS.baseUrl);
+		expect(junk.token).toBe('');
+		expect(junk.folder).toBe('');
+		expect(junk.intervalMinutes).toBe(DEFAULT_SETTINGS.intervalMinutes);
+		expect(junk.notifications).toBe(true);
+		// A NaN interval would propagate straight into setInterval.
+		expect(Number.isFinite(junk.intervalMinutes)).toBe(true);
 	});
 });
