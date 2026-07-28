@@ -6,7 +6,7 @@
 export interface OutboxItem {
 	id: string;
 	renderedMarkdown: string;
-	suggestedFilename?: string;
+	suggestedFilename?: string | null;
 	createdAt?: string;
 }
 
@@ -86,15 +86,27 @@ export interface SyncResult {
 }
 
 /**
- * Whether an outbox entry carries the three fields a delivery depends on. The server is
- * untrusted for filenames (see sanitizeFilename), so it is untrusted for shape too.
+ * Whether an outbox entry carries the two fields a delivery depends on: an id to ack
+ * against, and a body to write. A FILENAME is deliberately not among them — the server is
+ * untrusted for filenames (see sanitizeFilename, which derives one from the id when it has
+ * to), so a missing one is recoverable rather than fatal. It is still untrusted for shape.
  *
  * Lives here, not in outboxClient.ts, because that module imports `obsidian` — a
  * types-only package the test runner cannot load, which would leave this untested.
  */
 export function isOutboxItem(value: unknown): value is OutboxItem {
 	const item = value as Partial<OutboxItem> | null;
-	return !!item && typeof item.id === 'string' && item.id !== '' && typeof item.renderedMarkdown === 'string';
+	return (
+		!!item &&
+		typeof item.id === 'string' &&
+		item.id !== '' &&
+		typeof item.renderedMarkdown === 'string' &&
+		// Absent or null is the case this whole change is about — Payload serves an unset
+		// `text` column as null, so that is what the wire actually carries. Anything else
+		// non-string is genuinely absurd and still rejected, which keeps the predicate
+		// honest: it promises `string | null | undefined`, and that is what it checks.
+		(item.suggestedFilename == null || typeof item.suggestedFilename === 'string')
+	);
 }
 
 /**

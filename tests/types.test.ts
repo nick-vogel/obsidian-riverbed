@@ -21,9 +21,18 @@ describe('isOutboxItem', () => {
 	// protected (a body that is not a string must never reach `vault.create`) is still real
 	// and is pinned above.
 	it('accepts an entry with no filename, because that is recoverable', () => {
-		expect(isOutboxItem({ ...good, suggestedFilename: undefined })).toBe(true);
+		// null is the case that matters: Payload serves an unset `text` column as null, so
+		// that is what the wire actually carries for a save created outside app-save.ts.
 		expect(isOutboxItem({ ...good, suggestedFilename: null })).toBe(true);
-		expect(isOutboxItem({ ...good, suggestedFilename: 42 })).toBe(true);
+		expect(isOutboxItem({ ...good, suggestedFilename: undefined })).toBe(true);
+	});
+
+	it('still rejects a filename that is neither a string nor absent', () => {
+		// Recoverable is not the same as "anything goes". A number here means the server is
+		// sending something this client does not understand, and the predicate promises
+		// `string | null | undefined` — it has to actually check that or it is lying.
+		expect(isOutboxItem({ ...good, suggestedFilename: 42 })).toBe(false);
+		expect(isOutboxItem({ ...good, suggestedFilename: {} })).toBe(false);
 	});
 
 	it('normalises any unusable filename to an empty string for the id fallback', () => {

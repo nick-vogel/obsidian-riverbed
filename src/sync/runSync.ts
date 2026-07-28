@@ -88,7 +88,14 @@ export class SyncRunner {
 					throw new Error('malformed outbox entry: renderedMarkdown is not a string');
 				}
 				// A blank name is recoverable — sanitizeFilename derives one from the id.
-				const filename = sanitizeFilename(filenameOf(item), item.id);
+				// Said out loud, because otherwise the capture simply appears under an
+				// opaque `riverbed-capture-<id>.md` with no trace of why, where before the
+				// change it was at least visible (wrongly, as an error) in the reader.
+				const suggested = filenameOf(item);
+				if (suggested === '') {
+					deps.log?.(`Riverbed: entry ${item.id} arrived with no filename; using a name derived from its id`);
+				}
+				const filename = sanitizeFilename(suggested, item.id);
 				const target = await resolveTarget(deps.vault, folder, filename, item.renderedMarkdown);
 				if (target.action === 'write') {
 					await deps.vault.create(target.path, item.renderedMarkdown);
