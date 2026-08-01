@@ -1,6 +1,6 @@
 import { resolveTarget } from './resolve';
 import { sanitizeFilename, sanitizeFolder } from './sanitize';
-import { SyncDeps, SyncResult, isOutboxItem } from './types';
+import { SyncDeps, SyncResult, filenameOf, isOutboxItem } from './types';
 
 function reasonOf(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
@@ -85,9 +85,17 @@ export class SyncRunner {
 				// Fail it through the normal path so it is REPORTED and visible in the
 				// reader's Outbox, rather than dropped where nobody would ever see it.
 				if (!isOutboxItem(item)) {
-					throw new Error('malformed outbox entry: renderedMarkdown or suggestedFilename is not a string');
+					throw new Error('malformed outbox entry: renderedMarkdown is not a string');
 				}
-				const filename = sanitizeFilename(item.suggestedFilename, item.id);
+				// A blank name is recoverable — sanitizeFilename derives one from the id.
+				// Said out loud, because otherwise the capture simply appears under an
+				// opaque `riverbed-capture-<id>.md` with no trace of why, where before the
+				// change it was at least visible (wrongly, as an error) in the reader.
+				const suggested = filenameOf(item);
+				if (suggested === '') {
+					deps.log?.(`Riverbed: entry ${item.id} arrived with no filename; using a name derived from its id`);
+				}
+				const filename = sanitizeFilename(suggested, item.id);
 				const target = await resolveTarget(deps.vault, folder, filename, item.renderedMarkdown);
 				if (target.action === 'write') {
 					await deps.vault.create(target.path, item.renderedMarkdown);

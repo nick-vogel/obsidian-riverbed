@@ -445,12 +445,32 @@ describe('runSync — malformed entries', () => {
 
 		const result = await new SyncRunner().run(deps(vault, outbox));
 
+		// Both entries here are still fatal, and deliberately so: entry 2 has no body, and
+		// entry 3's filename is a NUMBER, which is not "absent" but "the server is sending
+		// something we do not understand". The recoverable case — a filename that is absent
+		// or null — is covered by its own test below, where it DELIVERS.
 		expect(result).toEqual({ delivered: 2, failed: 2, pending: 4 });
 		expect(vault.files.get('inbox/a.md')).toBe('first\n');
 		expect(vault.files.get('inbox/d.md')).toBe('fourth\n');
 		expect(vault.files.size).toBe(2);
 		expect(outbox.acked).toEqual(['1', '4']);
 		expect(outbox.reported.map((e: { id: string }) => e.id).sort()).toEqual(['2', '3']);
+	});
+
+	// The recovery itself, asserted directly rather than inferred from a count: an entry
+	// with NO filename is written under a name derived from its id, and is acked.
+	it('writes an entry with no filename at all, under an id-derived name', async () => {
+		const vault = new FakeVault();
+		const outbox = new FakeOutbox([malformed('abc123', { suggestedFilename: null })]);
+
+		const result = await new SyncRunner().run(deps(vault, outbox));
+
+		expect(result).toEqual({ delivered: 1, failed: 0, pending: 1 });
+		expect(outbox.acked).toEqual(['abc123']);
+		const written = [...vault.files.keys()];
+		expect(written).toHaveLength(1);
+		expect(written[0]).toContain('abc123');
+		expect(written[0].endsWith('.md')).toBe(true);
 	});
 
 	it('treats an entry that is only an id as malformed, not as an empty capture', async () => {
