@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-riverbed",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"packageManager": "pnpm@10.13.1",
 	"description": "Obsidian companion plugin for Riverbed: drains saved captures into your vault.",
 	"main": "main.js",
