@@ -9,3 +9,5 @@ node_modules/
 main.js
 *.js.map
 
+# Local env files (never committed)
+.env*

@@ -3,7 +3,7 @@
 	"name": "Riverbed",
 	"version": "0.2.1",
 	"minAppVersion": "1.5.0",
-	"description": "Syncs your saved Riverbed captures into this vault as markdown notes.",
+	"description": "Sync your saved Riverbed captures into your vault as Markdown notes.",
 	"author": "Nick Vogel",
 	"authorUrl": "https://riverbedfeed.com",
 	"isDesktopOnly": false
