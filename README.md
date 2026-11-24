@@ -1,13 +1,25 @@
 # Riverbed for Obsidian
 
 Syncs your saved [Riverbed](https://riverbedfeed.com) captures into your Obsidian vault
-as markdown notes.
+as Markdown notes.
 
 Riverbed's reader keeps every save in a pull-based outbox. This plugin is the bridge: it
 polls that outbox on an interval, writes each capture's rendered markdown into a folder
 you choose, and confirms delivery back to Riverbed so the same capture is never delivered
 twice. Captures arrive exactly as your Riverbed capture template rendered them, so they
 drop straight into whatever inbox workflow you already run.
+
+## Before you install
+
+- **Account.** The plugin needs a Riverbed account and an API token from it, on
+  <https://riverbedfeed.com> or on your own Riverbed instance.
+- **Payment.** The plugin is free. It works on a free Riverbed account and on a
+  self-hosted instance.
+- **Network use.** The plugin contacts only the Riverbed instance in its **Base URL**
+  setting, `https://riverbedfeed.com` by default. It reads your pending captures from that
+  instance's outbox, confirms each capture it writes, and reports a failed write back so
+  it shows in Riverbed's Outbox view. It contacts no other service and sends no telemetry.
+- **Files.** The plugin writes only inside your vault, in the destination folder you set.
 
 ## Quick start
 
@@ -19,8 +31,8 @@ drop straight into whatever inbox workflow you already run.
 
 ## Install
 
-The plugin is not in the Obsidian community store yet. Both install routes below are
-supported.
+The plugin is not in the Obsidian community plugins directory yet. Both install routes
+below are supported.
 
 **First, in a brand new vault:** open **Settings → Community plugins** and click **Turn on
 community plugins**. A fresh vault starts in Restricted Mode, where no third-party plugin
@@ -32,27 +44,19 @@ will load by either route below.
 from a GitHub repository.
 
 1. Install **BRAT** from Obsidian's community plugins browser and enable it.
-2. This repository is **private**, so BRAT needs a GitHub personal access token to read it.
-   Create one at <https://github.com/settings/tokens> with **read access to this
-   repository** (a fine-grained token scoped to `nick-vogel/obsidian-riverbed` with
-   *Contents: Read-only* is enough; a classic token needs the `repo` scope). Paste it into
-   **Settings → BRAT → GitHub personal access token**.
-   *If you were given access to a public build, skip this step.*
-3. **Settings → BRAT → Add beta plugin**, and enter:
+2. **Settings → BRAT → Add beta plugin**, and enter:
 
    ```
    nick-vogel/obsidian-riverbed
    ```
 
-4. BRAT downloads the latest release and installs it. Enable **Riverbed** under
+3. BRAT downloads the latest release and installs it. Enable **Riverbed** under
    **Settings → Community plugins**.
 
 ### Option B: manual install
 
 1. Download `main.js` and `manifest.json` from the
    [latest release](https://github.com/nick-vogel/obsidian-riverbed/releases/latest).
-   The repository is private, so that page only opens if you are signed in to GitHub with
-   access to it. Without access, ask for the two files directly.
 2. Create the folder `.obsidian/plugins/riverbed/` inside your vault.
 3. Put both files in it. The folder must contain exactly `main.js` and `manifest.json`.
 4. Restart Obsidian (or use **Settings → Community plugins → Reload plugins**), then enable
@@ -256,4 +260,4 @@ builds enforce 5.
 
 ## License
 
-MIT
+MIT. Copyright (c) 2026 NLVogel, LLC. See [LICENSE](LICENSE).
