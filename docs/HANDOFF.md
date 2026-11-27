@@ -197,6 +197,10 @@ present) does not evidence the production one.
   lifetime while `display()` re-runs on every settings open. Use plain `addEventListener`.
 - **Release tags are bare semver, no `v` prefix.** `versions.json` ACCUMULATES entries.
   Never move a published tag; roll forward.
+- **A release is cut by pushing its tag**, after the version bump lands on `main`.
+  `.github/workflows/release.yml` checks the tag against `manifest.json`, `package.json` and
+  `versions.json`, builds, attests `main.js` and `manifest.json`, and publishes the release.
+  Never upload release assets by hand: a hand-built file has no attestation.
 - **BRAT** wants `owner/repo`, NOT a URL, and a fine-grained PAT with the repository
   selected but **no permissions added** fails with the same "Repository not found". It needs
   `Contents: Read-only`.
