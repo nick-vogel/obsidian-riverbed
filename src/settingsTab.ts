@@ -26,7 +26,7 @@ export class RiverbedSettingTab extends PluginSettingTab {
 	 */
 	private persist(what: string): void {
 		this.plugin.saveSettings().catch((e) => {
-			console.log(`Riverbed: could not save the ${what} setting: ${reasonOf(e)}`);
+			console.error(`Riverbed: could not save the ${what} setting: ${reasonOf(e)}`);
 		});
 	}
 

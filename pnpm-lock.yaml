@@ -11,9 +11,6 @@ importers:
       '@types/node':
         specifier: ^22.10.2
         version: 22.20.1
-      builtin-modules:
-        specifier: ^4.0.0
-        version: 4.0.0
       esbuild:
         specifier: ^0.24.2
         version: 0.24.2
@@ -498,10 +495,6 @@ packages:
   assertion-error@2.0.1:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
-
-  builtin-modules@4.0.0:
-    resolution: {integrity: sha512-p1n8zyCkt1BVrKNFymOHjcDSAl7oq/gUvfgULv2EblgpPVQlQr9yHnWjg9IJ2MhfwPqiYqMMrr01OY7yQoK2yA==}
-    engines: {node: '>=18.20'}
 
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
@@ -1000,8 +993,6 @@ snapshots:
       tinyrainbow: 1.2.0
 
   assertion-error@2.0.1: {}
-
-  builtin-modules@4.0.0: {}
 
   cac@6.7.14: {}
 

@@ -67,13 +67,13 @@ export default class RiverbedPlugin extends Plugin {
 		});
 		this.rescheduleSync();
 
-		console.log(`Riverbed: loaded (sync interval floor ${this.intervalFloor} min)`);
+		console.debug(`Riverbed: loaded (sync interval floor ${this.intervalFloor} min)`);
 	}
 
 	onunload() {
 		this.unloaded = true;
 		this.clearInterval();
-		console.log('Riverbed: unloaded');
+		console.debug('Riverbed: unloaded');
 	}
 
 	/**
@@ -124,7 +124,7 @@ export default class RiverbedPlugin extends Plugin {
 				vault: this.vaultAdapter(),
 				outbox: this.outbox,
 				folder: this.settings.folder,
-				log: (message) => console.log(message),
+				log: (message) => console.warn(message),
 				// Announced by the RUNNER, from inside its single-flight guard, so this only
 				// fires for a pass that genuinely started. Setting it here instead let a
 				// skipped pass overwrite a running one's `syncing 9 of 10` with a bare
@@ -139,7 +139,7 @@ export default class RiverbedPlugin extends Plugin {
 			this.report(stateForResult(result), trigger);
 		} catch (e) {
 			const reason = e instanceof Error ? e.message : String(e);
-			console.log(`Riverbed: sync (${trigger}) failed: ${reason}`);
+			console.warn(`Riverbed: sync (${trigger}) failed: ${reason}`);
 			this.report({ kind: 'failed', reason }, trigger);
 		}
 	}
