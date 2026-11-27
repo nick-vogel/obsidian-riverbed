@@ -35,7 +35,7 @@ export async function testConnection(baseUrl: string, token: string): Promise<Te
 			headers: { Authorization: `Token ${token.trim()}` },
 			throw: false,
 		});
-	} catch (e) {
+	} catch {
 		return { kind: 'unreachable' };
 	}
 
@@ -44,9 +44,10 @@ export async function testConnection(baseUrl: string, token: string): Promise<Te
 		// reported as connected with an unknown count rather than as unreachable.
 		let pending: number | null = null;
 		try {
-			const items = res.json?.items;
+			const body: unknown = res.json;
+			const items = typeof body === 'object' && body !== null ? (body as { items?: unknown }).items : undefined;
 			if (Array.isArray(items)) pending = items.length;
-		} catch (e) {
+		} catch {
 			pending = null;
 		}
 		return { kind: 'connected', pending };
@@ -96,7 +97,7 @@ export class HttpOutboxGateway implements OutboxGateway {
 		// malformed entry here would stall it forever with no user-visible trace.
 		const usable = items.filter(isIdentifiable);
 		if (usable.length !== items.length) {
-			console.log(
+			console.warn(
 				`Riverbed: ignored ${items.length - usable.length} outbox entr${items.length - usable.length === 1 ? 'y' : 'ies'} with no id`,
 			);
 		}

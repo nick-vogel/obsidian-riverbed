@@ -12,7 +12,7 @@
  * `\p{Cc}` is the control characters, `\p{Cf}` the format characters: the bidi overrides
  * and isolates, the zero-width spaces and joiners, the soft hyphen, the Arabic letter mark,
  * the BOM, the astral tag block. The hand-listed ranges this replaces covered roughly half
- * of them, which meant `​/etc` was reported as an attempt to leave the vault while
+ * of them, which meant `U+200B/etc` was reported as an attempt to leave the vault while
  * `­/etc` was silently accepted and created a folder whose name rendered blank. A
  * property is the whole class by construction; an enumeration is whatever was thought of.
  *
@@ -227,7 +227,7 @@ export function sanitizeFolder(input: string): FolderSanitizeResult {
 	let escaped = /^[/\\]/.test(visible(trimmed));
 
 	// Trim each segment HERE, before anything looks at it. Deciding `escaped` from a regex
-	// over the raw string instead let a padded traversal (`.. /x`, `.. /x`) be stripped
+	// over the raw string instead let a padded traversal (`.. /x`, `..U+00A0/x`) be stripped
 	// without being flagged, so the folder was safe but the user got the wrong notice.
 	const segments = trimmed.split(/[/\\]+/).map((segment) => segment.trim());
 
